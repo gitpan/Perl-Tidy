@@ -2,7 +2,7 @@
 #
 #    perltidy - a perl script indenter and formatter
 #
-#    Copyright (c) 2000, 2001, 2002 by Steve Hancock
+#    Copyright (c) 2000-2003 by Steve Hancock
 #    Distributed under the GPL license agreement; see file COPYING
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@
 #
 #    This script is an example of the default style.  It was formatted with:
 #
-#      perltidy -olc perltidy
+#      perltidy Tidy.pm
 #
 #    Code Contributions:
 #      Michael Cartmell supplied code for adaptation to VMS and helped with
@@ -61,7 +61,7 @@ use IO::File;
 use File::Basename;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.36 2002/11/30 15:05:23 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.45 2003/07/26 14:05:41 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -292,6 +292,9 @@ sub make_temporary_filename {
             stderr      => undef,
         );
 
+        # don't overwrite callers ARGV
+        local @ARGV=@ARGV;
+
         my %input_hash = @_;
         if ( my @bad_keys = grep { !exists $defaults{$_} } keys %input_hash ) {
             local $" = ')(';
@@ -316,12 +319,15 @@ EOM
         my $stderr_stream      = $input_hash{'stderr'};
         my $user_formatter     = $input_hash{'formatter'};
 
-        # future checks on $user_formatter go here
         if ($user_formatter) {
+
+            # if the user defines a formatter, there is no output stream,
+            # but we need a null stream to keep coding simple
+            $destination_stream = Perl::Tidy::DevNull->new();
         }
 
         # see if ARGV is overridden
-        if ($argv) {
+        if ( defined($argv) ) {
 
             my $rargv = ref $argv;
             if ( $rargv eq 'SCALAR' ) { $argv = $$argv; $rargv = undef }
@@ -397,6 +403,10 @@ EOM
             $Windows_type,      $rpending_complaint
           );
 
+        if ($user_formatter) {
+            $rOpts->{'format'} = 'user';
+        }
+
         # there must be one entry here for every possible format
         my %default_file_extension = (
             tidy => 'tdy',
@@ -464,9 +474,12 @@ EOM
         }
 
         # make the pattern of file extensions that we shouldn't touch
-        $_ = quotemeta($output_extension);
-        my $forbidden_file_extensions = "(($dot_pattern)(LOG|DEBUG|ERR|TEE)|$_";
-        if ($in_place_modify) {
+        my $forbidden_file_extensions = "(($dot_pattern)(LOG|DEBUG|ERR|TEE)";
+        if ($output_extension) {
+            $_ = quotemeta($output_extension);
+            $forbidden_file_extensions .= "|$_";
+        }
+        if ( $in_place_modify && $backup_extension ) {
             $_ = quotemeta($backup_extension);
             $forbidden_file_extensions .= "|$_";
         }
@@ -487,12 +500,16 @@ EOM
             }
 
             # we'll stuff the source array into ARGV
-            unshift ( @ARGV, $source_stream );
+            unshift( @ARGV, $source_stream );
+
+            # No special treatment for source stream which is a filename.
+            # This will enable checks for binary files and other bad stuff.
+            $source_stream = undef unless ref($source_stream);
         }
 
         # use stdin by default if no source array and no args
         else {
-            unshift ( @ARGV, '-' ) unless @ARGV;
+            unshift( @ARGV, '-' ) unless @ARGV;
         }
 
         # loop to process all files in argument list
@@ -587,7 +604,7 @@ EOM
             # rerun perltidy over and over with wildcard input.
             if (
                 !$source_stream
-                && (   $input_file =~ /$forbidden_file_extensions/
+                && (   $input_file =~ /$forbidden_file_extensions/o
                     || $input_file eq 'DIAGNOSTICS' )
               )
             {
@@ -847,9 +864,7 @@ EOM
 
             $logger_object->finish( $infile_syntax_ok, $formatter )
               if $logger_object;
-
         }    # end of loop to process all files
-
     }    # end of main program
 }
 
@@ -889,7 +904,7 @@ sub write_logfile_header {
     if ($Windows_type) {
         $logger_object->write_logfile_entry("Windows type is $Windows_type\n");
     }
-    my $options_string = join ( ' ', @$rraw_options );
+    my $options_string = join( ' ', @$rraw_options );
 
     if ($config_file) {
         $logger_object->write_logfile_entry(
@@ -969,6 +984,7 @@ sub process_command_line {
     @option_string = qw(
       html!
       noprofile
+      no-profile
       npro
       recombine!
     );
@@ -1074,6 +1090,7 @@ sub process_command_line {
     $add_option->( 'minimum-space-to-comment',                  'msc',   '=i' );
     $add_option->( 'nowant-left-space',                         'nwls',  '=s' );
     $add_option->( 'nowant-right-space',                        'nwrs',  '=s' );
+    $add_option->( 'nospace-after-keyword',                     'nsak',  '=s' );
     $add_option->( 'opening-brace-always-on-right',             'bar',   '' );
     $add_option->( 'opening-brace-on-new-line',                 'bl',    '!' );
     $add_option->( 'opening-sub-brace-on-new-line',             'sbl',   '!' );
@@ -1095,6 +1112,7 @@ sub process_command_line {
     $add_option->( 'quiet',                                     'q',     '!' );
     $add_option->( 'short-concatenation-item-length',           'scl',   '=i' );
     $add_option->( 'show-options',                              'opt',   '!' );
+    $add_option->( 'space-after-keyword',                       'sak',   '=s' );
     $add_option->( 'space-for-semicolon',                       'sfs',   '!' );
     $add_option->( 'space-terminal-semicolon',                  'sts',   '!' );
     $add_option->( 'square-bracket-tightness',                  'sbt',   '=i' );
@@ -1197,6 +1215,7 @@ sub process_command_line {
 
       pod2html
       html-table-of-contents
+      html-entities
     );
 
     push @defaults, "perl-syntax-check-flags=-c -T";
@@ -1358,7 +1377,7 @@ sub process_command_line {
     foreach $i (@ARGV) {
 
         $i =~ s/^--/-/;
-        if ( $i =~ /^-(npro|noprofile)$/ ) {
+        if ( $i =~ /^-(npro|noprofile|no-profile)$/ ) {
             $saw_ignore_profile = 1;
         }
 
@@ -1669,6 +1688,9 @@ sub expand_command_abbreviations {
         # loop over each item in @ARGV..
         foreach $word (@ARGV) {
 
+            # convert any leading 'no-' to just 'no'
+            if ( $word =~ /^(-[-]?no)-(.*)/ ) { $word = $1 . $2 }
+
             # if it is a dash flag (instead of a file name)..
             if ( $word =~ /^-[-]?([\w\-]+)(.*)/ ) {
 
@@ -1677,7 +1699,7 @@ sub expand_command_abbreviations {
 
                 # save the raw input for debug output in case of circular refs
                 if ( $pass_count == 0 ) {
-                    push ( @$rraw_options, $word );
+                    push( @$rraw_options, $word );
                 }
 
                 # recombine abbreviation and flag, if necessary,
@@ -1695,19 +1717,19 @@ sub expand_command_abbreviations {
                     # new arg list for the next pass
                     foreach my $abbrev ( @{ $rexpansion->{$abr} } ) {
                         next unless $abbrev;    # for safety; shouldn't happen
-                        push ( @new_argv, '--' . $abbrev . $flags );
+                        push( @new_argv, '--' . $abbrev . $flags );
                     }
                 }
 
                 # not in expansion hash, must be actual long name
                 else {
-                    push ( @new_argv, $word );
+                    push( @new_argv, $word );
                 }
             }
 
             # not a dash item, so just save it for the next pass
             else {
-                push ( @new_argv, $word );
+                push( @new_argv, $word );
             }
         }    # end of this pass
 
@@ -1837,7 +1859,7 @@ EOS
 
     # Unfortunately the logic used for the various versions isnt so clever..
     # so we have to handle an outside case.
-    return ( $os eq "2000" & $major != 5 ) ? "NT4" : $os;
+    return ( $os eq "2000" && $major != 5 ) ? "NT4" : $os;
 }
 
 sub look_for_Windows {
@@ -2060,7 +2082,7 @@ EOM
                 }
 
                 else {
-                    push ( @config_list, @$rbody_parts );
+                    push( @config_list, @$rbody_parts );
                 }
             }
 
@@ -2149,7 +2171,7 @@ sub parse_args {
     # There is no need, at present, to handle escaped quote characters.
     # (They are not perltidy tokens, so needn't be in strings).
 
-    my ($body) = @_;
+    my ($body)     = @_;
     my @body_parts = ();
     my $quote_char = "";
     my $part       = "";
@@ -2238,7 +2260,7 @@ sub show_version {
     print <<"EOM";
 This is perltidy, v$VERSION 
 
-Copyright 2000-2002, Steve Hancock
+Copyright 2000-2003, Steve Hancock
 
 Perltidy is free software and may be copied under the terms of the GNU
 General Public License, which is included in the distribution files.
@@ -2318,6 +2340,8 @@ Whitespace Control
  -wls=s  want space left of tokens in string; i.e. -nwls='+ - * /'
  -wrs=s  want space right of tokens in string;
  -sts    put space before terminal semicolon of a statement
+ -sak=s  put space between keywords given in s and '(';
+ -nsak=s no space between keywords in s and '('; i.e. -nsak='my our local'
 
 Line Break Control
  -fnl    freeze newlines; this disables all line break changes
@@ -2444,7 +2468,7 @@ sub process_this_file {
     }
 
     # finish up
-    $beauty->finish_formatting();
+    eval { $beauty->finish_formatting() };
     $truth->report_tokenization_errors();
 }
 
@@ -2864,7 +2888,7 @@ sub really_open_tee_file {
     my $tee_file = $self->{_tee_file};
     my $fh_tee;
     $fh_tee = IO::File->new(">$tee_file")
-      or die ("couldn't open TEE file $tee_file: $!\n");
+      or die("couldn't open TEE file $tee_file: $!\n");
     $self->{_tee_file_opened} = 1;
     $self->{_fh_tee}          = $fh_tee;
 }
@@ -3115,10 +3139,12 @@ sub make_line_information_string {
         # keep logfile columns aligned for scripts up to 999 lines;
         # for longer scripts it doesn't really matter
         my $extra_space = "";
-        $extra_space .= ( $input_line_number < 10 ) ? "  "
+        $extra_space .=
+            ( $input_line_number < 10 ) ? "  "
           : ( $input_line_number < 100 ) ? " "
           : "";
-        $extra_space .= ( $output_line_number < 10 ) ? "  "
+        $extra_space .=
+            ( $output_line_number < 10 ) ? "  "
           : ( $output_line_number < 100 ) ? " "
           : "";
 
@@ -3231,7 +3257,7 @@ sub warning {
             else {
                 ( $fh_warnings, my $filename ) =
                   Perl::Tidy::streamhandle( $warning_file, 'w' );
-                $fh_warnings or die ("couldn't open $filename $!\n");
+                $fh_warnings or die("couldn't open $filename $!\n");
                 warn "## Please see file $filename\n";
             }
             $self->{_fh_warnings} = $fh_warnings;
@@ -3316,7 +3342,11 @@ smallest possible script which produces this message, along with the
 Your efforts are appreciated.  
 Thank you!
 EOM
-            my $added_semicolon_count = $formatter->get_added_semicolon_count();
+            my $added_semicolon_count = 0;
+            eval {
+                $added_semicolon_count =
+                  $formatter->get_added_semicolon_count();
+            };
             if ( $added_semicolon_count > 0 ) {
                 $self->warning(<<EOM);
 
@@ -3372,7 +3402,7 @@ sub finish {
         if ($fh) {
             my $routput_array = $self->{_output_array};
             foreach ( @{$routput_array} ) { $fh->print($_) }
-            eval { $fh->close() };
+            eval                          { $fh->close() };
         }
     }
 }
@@ -3756,6 +3786,7 @@ sub make_getopt_long_names {
     push @$rgetopt_names, "nohtml-style-sheets";
     push @$rgetopt_names, "html-pre-only";
     push @$rgetopt_names, "html-line-numbers";
+    push @$rgetopt_names, "html-entities!";
     push @$rgetopt_names, "stylesheet";
     push @$rgetopt_names, "html-table-of-contents!";
     push @$rgetopt_names, "pod2html!";
@@ -3801,20 +3832,22 @@ sub make_abbreviated_names {
     }
 
     # abbreviations for all other html options
-    ${$rexpansion}{"hcbg"} = ["html-color-background"];
-    ${$rexpansion}{"pre"}  = ["html-pre-only"];
-    ${$rexpansion}{"toc"}  = ["html-table-of-contents"];
-    ${$rexpansion}{"ntoc"} = ["nohtml-table-of-contents"];
-    ${$rexpansion}{"nnn"}  = ["html-line-numbers"];
-    ${$rexpansion}{"css"}  = ["html-linked-style-sheet"];
-    ${$rexpansion}{"nss"}  = ["nohtml-style-sheets"];
-    ${$rexpansion}{"ss"}   = ["stylesheet"];
-    ${$rexpansion}{"pod"}  = ["pod2html"];
-    ${$rexpansion}{"npod"} = ["nopod2html"];
-    ${$rexpansion}{"frm"}  = ["frames"];
-    ${$rexpansion}{"nfrm"} = ["noframes"];
-    ${$rexpansion}{"text"} = ["html-toc-extension"];
-    ${$rexpansion}{"sext"} = ["html-src-extension"];
+    ${$rexpansion}{"hcbg"}  = ["html-color-background"];
+    ${$rexpansion}{"pre"}   = ["html-pre-only"];
+    ${$rexpansion}{"toc"}   = ["html-table-of-contents"];
+    ${$rexpansion}{"ntoc"}  = ["nohtml-table-of-contents"];
+    ${$rexpansion}{"nnn"}   = ["html-line-numbers"];
+    ${$rexpansion}{"hent"}  = ["html-entities"];
+    ${$rexpansion}{"nhent"} = ["nohtml-entities"];
+    ${$rexpansion}{"css"}   = ["html-linked-style-sheet"];
+    ${$rexpansion}{"nss"}   = ["nohtml-style-sheets"];
+    ${$rexpansion}{"ss"}    = ["stylesheet"];
+    ${$rexpansion}{"pod"}   = ["pod2html"];
+    ${$rexpansion}{"npod"}  = ["nopod2html"];
+    ${$rexpansion}{"frm"}   = ["frames"];
+    ${$rexpansion}{"nfrm"}  = ["noframes"];
+    ${$rexpansion}{"text"}  = ["html-toc-extension"];
+    ${$rexpansion}{"sext"}  = ["html-src-extension"];
 }
 
 sub check_options {
@@ -3901,6 +3934,7 @@ sub check_options {
             write_style_sheet_file($css_filename);
         }
     }
+    $missing_html_entities = 1 unless $rOpts->{'html-entities'};
 }
 
 sub write_style_sheet_file {
@@ -4101,7 +4135,7 @@ sub pod_to_html {
         }
 
         # Copy the perltidy css, if any, after <body> tag
-        elsif ( $line =~ /^\s*<body>\s*$/i ) {
+        elsif ( $line =~ /^\s*<body.*>\s*$/i ) {
             $saw_body = 1;
             $html_print->($css_string) if $css_string;
             $html_print->($line);
@@ -4137,14 +4171,13 @@ sub pod_to_html {
         }
 
         # Copy one perltidy section after each marker
-        elsif ( $line =~ /<!-- pERLTIDY sECTION -->(.*)$/ ) {
-            $line = $1;
+        elsif ( $line =~ /^(.*)<!-- pERLTIDY sECTION -->(.*)$/ ) {
+            $line = $2;
+            $html_print->($1) if $1;
 
-            # Only mix code and pod sections if we saw multiple =cut's.
-            # Otherwise, we'll put the pod out first and then
-            # the code, because it's less confusing.
+            # Intermingle code and pod sections if we saw multiple =cut's.
             if ( $self->{_pod_cut_count} > 1 ) {
-                my $rpre_string = shift (@$rpre_string_stack);
+                my $rpre_string = shift(@$rpre_string_stack);
                 if ($$rpre_string) {
                     $html_print->('<pre>');
                     $html_print->($$rpre_string);
@@ -4157,10 +4190,16 @@ sub pod_to_html {
                     warn
 "Problem merging html stream with pod2html; order may be wrong\n";
                 }
-
-                # The rest of the comment has an <hr>; we
-                # only want it if we are printing some code.
                 $html_print->($line);
+            }
+
+            # If didn't see multiple =cut lines, we'll put the pod out first
+            # and then the code, because it's less confusing.
+            else {
+
+                # since we are not intermixing code and pod, we don't need
+                # or want any <hr> lines which separated pod and code
+                $html_print->($line) unless ( $line =~ /^\s*<hr>\s*$/i );
             }
         }
 
@@ -4171,7 +4210,7 @@ sub pod_to_html {
                 unless ( $self->{_pod_cut_count} > 1 ) {
                     $html_print->('<hr />');
                 }
-                while ( my $rpre_string = shift (@$rpre_string_stack) ) {
+                while ( my $rpre_string = shift(@$rpre_string_stack) ) {
                     $html_print->('<pre>');
                     $html_print->($$rpre_string);
                     $html_print->('</pre>');
@@ -4217,8 +4256,8 @@ sub make_frame {
     # On entry:
     #  $html_filename contains the no-frames html output
     #  $rtoc is a reference to an array with the table of contents
-    my $self = shift;
-    my ($rtoc) = @_;
+    my $self          = shift;
+    my ($rtoc)        = @_;
     my $input_file    = $self->{_input_file};
     my $html_filename = $self->{_html_file};
     my $toc_filename  = $self->{_toc_filename};
@@ -4268,7 +4307,7 @@ sub write_toc_html {
 <title>$title</title>
 </head>
 <body>
-<h1><a href=\"$src_basename\"#-top-" target="$src_frame_name">$title</a></h1>
+<h1><a href=\"$src_basename#-top-" target="$src_frame_name">$title</a></h1>
 EOM
 
     my $first_anchor =
@@ -4508,9 +4547,8 @@ sub markup_tokens {
     my $self = shift;
     my ( $rtokens, $rtoken_type, $rlevels ) = @_;
     my ( @colored_tokens, $j, $string, $type, $token, $level );
-    my $rlast_level     = $self->{_rlast_level};
-    my $rin_toc_package = $self->{_rlast_level};
-    my $rpackage_stack  = $self->{_rpackage_stack};
+    my $rlast_level    = $self->{_rlast_level};
+    my $rpackage_stack = $self->{_rpackage_stack};
 
     for ( $j = 0 ; $j < @$rtoken_type ; $j++ ) {
         $type  = $$rtoken_type[$j];
@@ -4586,14 +4624,14 @@ sub markup_html_element {
     my $self = shift;
     my ( $token, $type ) = @_;
 
-    return $token if ( $type eq 'b' );    # skip a blank
-    return $token if ( $token =~ /^\s*$/ );
+    return $token if ( $type eq 'b' );    # skip a blank token
+    return $token if ( $token =~ /^\s*$/ );    # skip a blank line
     $token = escape_html($token);
 
     # get the short abbreviation for this token type
     my $short_name = $token_short_names{$type};
     if ( !defined($short_name) ) {
-        $short_name = "pu";               # punctuation is default
+        $short_name = "pu";                    # punctuation is default
     }
 
     # handle style sheets..
@@ -4643,11 +4681,11 @@ sub write_line {
 
     my $self = shift;
     return unless $self->{_html_file_opened};
-    my $html_pre_fh = $self->{_html_pre_fh};
+    my $html_pre_fh      = $self->{_html_pre_fh};
     my ($line_of_tokens) = @_;
-    my $line_type   = $line_of_tokens->{_line_type};
-    my $input_line  = $line_of_tokens->{_line_text};
-    my $line_number = $line_of_tokens->{_line_number};
+    my $line_type        = $line_of_tokens->{_line_type};
+    my $input_line       = $line_of_tokens->{_line_text};
+    my $line_number      = $line_of_tokens->{_line_number};
     chomp $input_line;
 
     # markup line of code..
@@ -4736,7 +4774,8 @@ EOM
 
     # add the line number if requested
     if ( $rOpts->{'html-line-numbers'} ) {
-        my $extra_space .= ( $line_number < 10 ) ? "   "
+        my $extra_space .=
+            ( $line_number < 10 ) ? "   "
           : ( $line_number < 100 )  ? "  "
           : ( $line_number < 1000 ) ? " "
           : "";
@@ -4846,6 +4885,7 @@ use vars qw{
   $last_last_nonblank_type_to_go
   $last_last_nonblank_token_to_go
   @nonblank_lines_at_depth
+  $starting_in_quote
 
   $forced_breakpoint_count
   $forced_breakpoint_undo_count
@@ -4895,17 +4935,22 @@ use vars qw{
   $last_output_level
   %is_do_follower
   %is_if_brace_follower
-  %space_before_paren
+  %space_after_keyword
   $rbrace_follower
   $looking_for_else
+  %is_last_next_redo_return
   %is_other_brace_follower
   %is_else_brace_follower
   %is_anon_sub_brace_follower
   %is_anon_sub_1_brace_follower
   %is_sort_map_grep
   %is_sort_map_grep_eval
+  %is_sort_map_grep_eval_do
   %is_block_without_semicolon
   %is_if_unless_and_or
+  %is_assignment
+  %is_chain_operator
+  %is_if_unless_and_or_last_next_redo_return
 
   @has_broken_sublist
   @dont_align
@@ -4992,6 +5037,14 @@ BEGIN {
     @is_trigraph{@_} = (1) x scalar(@_);
 
     @_ = qw(
+      = **= += *= &= <<= &&=
+      -= /= |= >>= ||=
+      .= %= ^=
+      x=
+    );
+    @is_assignment{@_} = (1) x scalar(@_);
+
+    @_ = qw(
       grep
       keys
       map
@@ -5001,11 +5054,20 @@ BEGIN {
     );
     @is_keyword_returning_list{@_} = (1) x scalar(@_);
 
+    @_ = qw(is if unless and or last next redo return);
+    @is_if_unless_and_or_last_next_redo_return{@_} = (1) x scalar(@_);
+
+    @_ = qw(last next redo return);
+    @is_last_next_redo_return{@_} = (1) x scalar(@_);
+
     @_ = qw(sort map grep);
     @is_sort_map_grep{@_} = (1) x scalar(@_);
 
     @_ = qw(sort map grep eval);
     @is_sort_map_grep_eval{@_} = (1) x scalar(@_);
+
+    @_ = qw(sort map grep eval do);
+    @is_sort_map_grep_eval_do{@_} = (1) x scalar(@_);
 
     @_ = qw(if unless and or);
     @is_if_unless_and_or{@_} = (1) x scalar(@_);
@@ -5275,6 +5337,7 @@ sub prepare_for_new_input_lines {
     $lengths_to_go[0]               = 0;
     $old_line_count_in_batch        = 1;
     $comma_count_in_batch           = 0;
+    $starting_in_quote              = 0;
 
     destroy_one_line_block();
 }
@@ -5741,13 +5804,17 @@ sub set_leading_whitespace {
     # non-list character, we give up and don't look for any more commas.
     if ( $type eq '=>' ) {
         $gnu_arrow_count{$total_depth}++;
+
+        # tentatively treating '=>' like '=' for estimating breaks
+        # TODO: this could use some experimentation
+        $last_gnu_equals{$total_depth} = $max_index_to_go;
     }
 
-    if ( $type eq ',' ) {
+    elsif ( $type eq ',' ) {
         $gnu_comma_count{$total_depth}++;
     }
 
-    elsif ( $type =~ /=/ ) {
+    elsif ( $is_assignment{$type} ) {
         $last_gnu_equals{$total_depth} = $max_index_to_go;
     }
 
@@ -5780,13 +5847,12 @@ sub set_leading_whitespace {
                 && ( $last_nonblank_token_to_go eq 'return' && $type ne '{' ) )
 
             # or starting a new line at certain keywords is fine
-            || ( $type eq 'k'
-                && ( $token =~ /^(if|unless|and|or|last|next|redo|return)$/ ) )
+            || (   $type eq 'k'
+                && $is_if_unless_and_or_last_next_redo_return{$token} )
 
             # or this is after an assignment after a closing structure
             || (
-                   $last_nonblank_type_to_go =~ /=/
-                && $last_nonblank_type_to_go !~ /(==|!=|>=|<=|=~|=>)/
+                $is_assignment{$last_nonblank_type_to_go}
                 && (
                     $last_last_nonblank_type_to_go =~ /^[\}\)\]]$/
 
@@ -5873,7 +5939,7 @@ sub check_for_long_gnu_style_lines {
         my $available_spaces = $item->get_AVAILABLE_SPACES();
 
         if ( $available_spaces > 0 ) {
-            push ( @candidates, [ $i, $available_spaces ] );
+            push( @candidates, [ $i, $available_spaces ] );
         }
     }
 
@@ -6221,10 +6287,10 @@ EOM
     @_ = qw(next last redo goto return);
 
     # override defaults if requested
-    if ( $rOpts->{'outdent-keyword-list'} ) {
-        $rOpts->{'outdent-keyword-list'} =~ s/^\s*//;
-        $rOpts->{'outdent-keyword-list'} =~ s/\s*$//;
-        @_ = split /\s+/, $rOpts->{'outdent-keyword-list'};
+    if ( $_ = $rOpts->{'outdent-keyword-list'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
     }
 
     # FUTURE: if not a keyword, assume that it is an identifier
@@ -6238,22 +6304,29 @@ EOM
     }
 
     # implement user whitespace preferences
-    if ( $rOpts->{'want-left-space'} ) {
-        @_ = split /\s/, $rOpts->{'want-left-space'};
+    if ( $_ = $rOpts->{'want-left-space'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
         @want_left_space{@_} = (1) x scalar(@_);
     }
 
-    if ( $rOpts->{'want-right-space'} ) {
-        @_ = split /\s/, $rOpts->{'want-right-space'};
+    if ( $_ = $rOpts->{'want-right-space'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
         @want_right_space{@_} = (1) x scalar(@_);
     }
-    if ( $rOpts->{'nowant-left-space'} ) {
-        @_ = split /\s/, $rOpts->{'nowant-left-space'};
+    if ( $_ = $rOpts->{'nowant-left-space'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
         @want_left_space{@_} = (-1) x scalar(@_);
     }
 
-    if ( $rOpts->{'nowant-right-space'} ) {
-        @_ = split /\s/, $rOpts->{'nowant-right-space'};
+    if ( $_ = $rOpts->{'nowant-right-space'} ) {
+        s/^\s+//;
+        s/\s+$//;
         @want_right_space{@_} = (-1) x scalar(@_);
     }
     if ( $rOpts->{'dump-want-left-space'} ) {
@@ -6266,9 +6339,30 @@ EOM
         exit 1;
     }
 
+    # default keywords for which space is introduced before an opening paren
+    # (at present, including them messes up vertical alignment)
+    @_ = qw(my local our and or eq ne if else elsif until
+      unless while for foreach return switch case given when);
+    @space_after_keyword{@_} = (1) x scalar(@_);
+
+    # allow user to modify these defaults
+    if ( $_ = $rOpts->{'space-after-keyword'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
+        @space_after_keyword{@_} = (1) x scalar(@_);
+    }
+
+    if ( $_ = $rOpts->{'nospace-after-keyword'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
+        @space_after_keyword{@_} = (0) x scalar(@_);
+    }
+
     # implement user break preferences
-    if ( $rOpts->{'want-break-after'} ) {
-        @_ = split /\s/, $rOpts->{'want-break-after'};
+    if ( $_ = $rOpts->{'want-break-after'} ) {
+        @_ = split /\s+/;
         foreach my $tok (@_) {
             if ( $tok eq '?' ) { $tok = ':' }    # patch to coordinate ?/:
             my $lbs = $left_bond_strength{$tok};
@@ -6280,8 +6374,10 @@ EOM
         }
     }
 
-    if ( $rOpts->{'want-break-before'} ) {
-        @_ = split /\s/, $rOpts->{'want-break-before'};
+    if ( $_ = $rOpts->{'want-break-before'} ) {
+        s/^\s+//;
+        s/\s+$//;
+        @_ = split /\s+/;
         foreach my $tok (@_) {
             my $lbs = $left_bond_strength{$tok};
             my $rbs = $right_bond_strength{$tok};
@@ -6518,8 +6614,8 @@ sub make_block_pattern {
     #   pattern:  '^((if|else|elsif|unless|while|for|foreach|do|\w+:)$|sub)';
 
     my ( $abbrev, $string ) = @_;
-    $string =~ s/^\s*//;
-    $string =~ s/\s$//;
+    $string =~ s/^\s+//;
+    $string =~ s/\s+$//;
     my @list = split /\s+/, $string;
     my @words = ();
     my %seen;
@@ -6538,7 +6634,7 @@ sub make_block_pattern {
             warn "unrecognized block type $i after $abbrev, ignoring\n";
         }
     }
-    my $pattern = '(' . join ( '|', @words ) . ')$';
+    my $pattern = '(' . join( '|', @words ) . ')$';
     if ( $seen{'sub'} ) {
         $pattern = '(' . $pattern . '|sub)';
     }
@@ -6769,7 +6865,6 @@ EOM
           )
 
           # must have space between grep and left paren; "grep(" will fail
-          #                       /^(sort|grep|map)$/
           || ( $tokenr eq '(' && $is_sort_grep_map{$tokenl} )
 
           # don't stick numbers next to left parens, as in:
@@ -6811,7 +6906,7 @@ sub set_white_space_flag {
         # %binary_ws_rules
         # %want_left_space
         # %want_right_space
-        # %space_before_paren
+        # %space_after_keyword
         #
         # Many token types are identical to the tokens themselves.
         # See the tokenizer for a complete list. Here are some special types:
@@ -6844,16 +6939,12 @@ sub set_white_space_flag {
         my @spaces_left_side = qw"
           t ! ~ m p { \ h pp mm Z j
           ";
-        push ( @spaces_left_side, '#' );    # avoids warning message
+        push( @spaces_left_side, '#' );    # avoids warning message
 
         my @spaces_right_side = qw"
           ; } ) ] R J ++ -- **=
           ";
-        push ( @spaces_right_side, ',' );    # avoids warning message
-        my @space_before_paren = qw(
-          my local and or eq ne if else elsif until unless while
-          for foreach push return shift unshift pop join split die
-        );
+        push( @spaces_right_side, ',' );    # avoids warning message
         @want_left_space{@spaces_both_sides} = (1) x scalar(@spaces_both_sides);
         @want_right_space{@spaces_both_sides} =
           (1) x scalar(@spaces_both_sides);
@@ -6863,8 +6954,6 @@ sub set_white_space_flag {
           (-1) x scalar(@spaces_right_side);
         @want_right_space{@spaces_right_side} =
           (1) x scalar(@spaces_right_side);
-        @space_before_paren{@space_before_paren} =
-          (1) x scalar(@space_before_paren);
         $want_left_space{'L'}   = WS_NO;
         $want_left_space{'->'}  = WS_NO;
         $want_right_space{'->'} = WS_NO;
@@ -7001,8 +7090,22 @@ sub set_white_space_flag {
                     $ws = WS_NO;
                 }
                 else {
+
+                    # Patch to count '-foo' as single token so that
+                    # each of  $a{-foo} and $a{foo} and $a{'foo'} do
+                    # not get spaces with default formatting.
+                    my $j_here = $j;
+                    ++$j_here
+                      if ( $token eq '-'
+                        && $last_token             eq '{'
+                        && $$rtoken_type[ $j + 1 ] eq 'w' );
+
+                    # $j_next is where a closing token should be if
+                    # the container has a single token
                     my $j_next =
-                      ( $$rtoken_type[ $j + 1 ] eq 'b' ) ? $j + 2 : $j + 1;
+                      ( $$rtoken_type[ $j_here + 1 ] eq 'b' )
+                      ? $j_here + 2
+                      : $j_here + 1;
                     my $tok_next  = $$rtokens[$j_next];
                     my $type_next = $$rtoken_type[$j_next];
 
@@ -7086,7 +7189,6 @@ sub set_white_space_flag {
             # this works:
             if ( $last_type eq '}' ) {
 
-                # /^(sort|map|grep)$/
                 if ( $is_sort_map_grep{$last_block_type} ) {
                     $ws = WS_YES;
                 }
@@ -7100,13 +7202,15 @@ sub set_white_space_flag {
             #   myfun(    &myfun(   ->myfun(
             # -----------------------------------------------------
             if (   ( $last_type =~ /^[wkU]$/ )
-                || ( $last_type eq 'i' && $last_token =~ /^(\&|->)/ ) )
+                || ( $last_type =~ /^[wi]$/ && $last_token =~ /^(\&|->)/ ) )
             {
 
                 # Do not introduce new space between keyword or function
-                # and ( except in special cases) because this can
+                # ( except in special cases) because this can
                 # introduce errors in some cases ( prnterr1.t )
-                unless ( $space_before_paren{$last_token} ) {
+                unless ( $last_type eq 'k'
+                    && $space_after_keyword{$last_token} )
+                {
                     $ws = WS_NO;
                 }
             }
@@ -7159,6 +7263,11 @@ sub set_white_space_flag {
         # retain any space between '-' and bare word
         elsif ( $type eq 'w' || $type eq 'C' ) {
             $ws = WS_OPTIONAL if $last_type eq '-';
+
+            # never a space before ->
+            if ( $token =~ /^\-\>/ ) {
+                $ws = WS_NO;
+            }
         }
 
         # retain any space between '-' and bare word
@@ -7453,7 +7562,8 @@ sub set_white_space_flag {
         $rci_levels             = $line_of_tokens->{_rci_levels};
         $rnesting_blocks        = $line_of_tokens->{_rnesting_blocks};
 
-        $in_continued_quote       = $line_of_tokens->{_starting_in_quote};
+        $in_continued_quote = $starting_in_quote =
+          $line_of_tokens->{_starting_in_quote};
         $in_quote                 = $line_of_tokens->{_ending_in_quote};
         $python_indentation_level =
           $line_of_tokens->{_python_indentation_level};
@@ -7633,7 +7743,7 @@ sub set_white_space_flag {
         #       /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/
         #   Examples:
         #     *VERSION = \'1.01';
-        #     ( $VERSION ) = '$Revision: 1.36 $ ' =~ /\$Revision:\s+([^\s]+)/;
+        #     ( $VERSION ) = '$Revision: 1.45 $ ' =~ /\$Revision:\s+([^\s]+)/;
         #   We will pass such a line straight through without breaking
         #   it unless -npvl is used
 
@@ -7672,8 +7782,8 @@ sub set_white_space_flag {
             return;
         }
 
-        push ( @$rtokens,     ' ', ' ' );  # making $j+2 valid simplifies coding
-        push ( @$rtoken_type, 'b', 'b' );
+        push( @$rtokens,     ' ', ' ' );   # making $j+2 valid simplifies coding
+        push( @$rtoken_type, 'b', 'b' );
         ($rwhite_space_flag) =
           set_white_space_flag( $jmax, $rtokens, $rtoken_type, $rblock_type );
 
@@ -7780,10 +7890,11 @@ sub set_white_space_flag {
             # Modify certain tokens here for whitespace
             # The following is not yet done, but could be:
             #   sub (x x x)
-            # These become type 'i', space and all.
-            if ( $type eq 'i' or $type eq 't' ) {
+            if ( $type =~ /^[wit]$/ ) {
 
-                # change "$  var"  to "$var" etc
+                # Examples:
+                # change '$  var'  to '$var' etc
+                #        '-> new'  to '->new'
                 if ( $token =~ /^([\$\&\%\*\@]|\-\>)\s/ ) {
                     $token =~ s/\s*//g;
                 }
@@ -8011,8 +8122,7 @@ sub set_white_space_flag {
                         && ( $block_type !~ /^[\{\};]$/ )
 
                         # it seems best not to add semicolons in these
-                        # special block types:
-                        #     /^(sort|map|grep)$/
+                        # special block types: sort|map|grep
                         && ( !$is_sort_map_grep{$block_type} )
 
                         # and we are allowed to do so.
@@ -8061,9 +8171,14 @@ sub set_white_space_flag {
 
                 # if this '}' successfully ends a one-line block..
                 my $is_one_line_block = 0;
+                my $keep_going        = 0;
                 if ( $index_start_one_line_block != UNDEFINED_INDEX ) {
 
-                    $is_one_line_block = 1;
+                    # Remember the type of token just before the
+                    # opening brace.  It would be more general to use
+                    # a stack, but this will work for one-line blocks.
+                    $is_one_line_block =
+                      $types_to_go[$index_start_one_line_block];
 
                     # we have to actually make it by removing tentative
                     # breaks that were set within it
@@ -8080,7 +8195,6 @@ sub set_white_space_flag {
                     #
                     # But make a line break if the curly ends a
                     # significant block:
-                    #    /^(until|while|for|if|elsif|else)$/
                     if ( $is_until_while_for_if_elsif_else{$block_type} ) {
                         output_line_to_go() unless ($no_internal_newlines);
                     }
@@ -8099,9 +8213,11 @@ sub set_white_space_flag {
                 }
 
                 # added eval for borris.t
-                # /^(sort|map|grep|eval)$/
-                elsif ( $is_sort_map_grep_eval{$block_type} ) {
+                elsif ($is_sort_map_grep_eval{$block_type}
+                    || $is_one_line_block eq 'G' )
+                {
                     $rbrace_follower = undef;
+                    $keep_going      = 1;
                 }
 
                 # anonymous sub
@@ -8144,10 +8260,9 @@ sub set_white_space_flag {
                     }
                 }
 
-                # keep going after these block types: map,sort,grep
+                # keep going after certain block types (map,sort,grep,eval)
                 # added eval for borris.t
-                #     /^(sort|grep|map|eval)$/
-                if ( $is_sort_map_grep_eval{$block_type} ) {
+                if ($keep_going) {
 
                     # keep going
                 }
@@ -8497,7 +8612,6 @@ sub starting_one_line_block {
     # we keep old one-line blocks but do not form new ones. It is not
     # always a good idea to make as many one-line blocks as possible,
     # so other types are not done.  The user can always use -mangle.
-    #     /^(eval|map|grep|sort)$/
     if ( $is_sort_map_grep_eval{$block_type} ) {
         create_one_line_block( $i_start, 1 );
     }
@@ -8574,150 +8688,195 @@ sub undo_lp_ci {
       @reduced_spaces_to_go[ @$ri_first[ $line_1 .. $n ] ];
 }
 
-sub set_logical_padding {
+{
 
-    # Look at a batch of lines and see if extra padding can improve the
-    # alignment when there are leading logical operators. Here is an
-    # example, in which some extra space is introduced before
-    # '( $year' to make it line up with the subsequent lines:
-    #
-    #       if (   ( $Year < 1601 )
-    #           || ( $Year > 2899 )
-    #           || ( $EndYear < 1601 )
-    #           || ( $EndYear > 2899 ) )
-    #       {
-    #           &Error_OutOfRange;
-    #       }
-    #
-    my ( $ri_first, $ri_last ) = @_;
-    my $max_line = @$ri_first - 1;
+    # Identify certain operators which often occur in chains.
+    # We will try to improve alignment when these lead a line.
+    my %is_chain_operator;
 
-    my ( $ibeg, $ibeg_next, $ibegm, $iend, $iendm, $ipad, $line, $pad_spaces,
-        $tok_next, $has_leading_op_next, $has_leading_op );
+    BEGIN {
+        @_ = qw(&& || and or : ? .);
+        @is_chain_operator{@_} = (1) x scalar(@_);
+    }
 
-    # looking at each line of this batch..
-    foreach $line ( 0 .. $max_line - 1 ) {
+    sub set_logical_padding {
 
-        # see if the next line begins with a logical operator
-        $ibeg                = $$ri_first[$line];
-        $iend                = $$ri_last[$line];
-        $ibeg_next           = $$ri_first[ $line + 1 ];
-        $tok_next            = $tokens_to_go[$ibeg_next];
-        $has_leading_op_next = ( $tok_next =~ /^(\&\&|\|\||and|or)$/ );
-        next unless ($has_leading_op_next);
+        # Look at a batch of lines and see if extra padding can improve the
+        # alignment when there are certain leading operators. Here is an
+        # example, in which some extra space is introduced before
+        # '( $year' to make it line up with the subsequent lines:
+        #
+        #       if (   ( $Year < 1601 )
+        #           || ( $Year > 2899 )
+        #           || ( $EndYear < 1601 )
+        #           || ( $EndYear > 2899 ) )
+        #       {
+        #           &Error_OutOfRange;
+        #       }
+        #
+        my ( $ri_first, $ri_last ) = @_;
+        my $max_line = @$ri_first - 1;
 
-        # next line must not be at lesser depth
-        next
-          if ( $nesting_depth_to_go[$ibeg] > $nesting_depth_to_go[$ibeg_next] );
+        my ( $ibeg, $ibeg_next, $ibegm, $iend, $iendm, $ipad, $line,
+            $pad_spaces, $tok_next, $has_leading_op_next, $has_leading_op );
 
-        # identify the token in this line to be padded on the left
-        $ipad = undef;
+        # looking at each line of this batch..
+        foreach $line ( 0 .. $max_line - 1 ) {
 
-        # handle lines at same depth...
-        if ( $nesting_depth_to_go[$ibeg] == $nesting_depth_to_go[$ibeg_next] ) {
+            # see if the next line begins with a logical operator
+            $ibeg                = $$ri_first[$line];
+            $iend                = $$ri_last[$line];
+            $ibeg_next           = $$ri_first[ $line + 1 ];
+            $tok_next            = $tokens_to_go[$ibeg_next];
+            $has_leading_op_next = $is_chain_operator{$tok_next};
+            next unless ($has_leading_op_next);
 
-            # previous line must be at lesser depth if this is not first line
-            # of the batch
-            if ( $line > 0 ) {
-                next
-                  if $nesting_depth_to_go[$ibegm] >=
-                  $nesting_depth_to_go[$ibeg];
+            # next line must not be at lesser depth
+            next
+              if ( $nesting_depth_to_go[$ibeg] >
+                $nesting_depth_to_go[$ibeg_next] );
 
-                # skip if we are at same depth as a previous line
-                # with leading logical operator
-                next if $has_leading_op;
-                $ipad = $ibeg;
-            }
+            # identify the token in this line to be padded on the left
+            $ipad = undef;
 
-            # for first line of the batch..
-            else {
+            # handle lines at same depth...
+            if ( $nesting_depth_to_go[$ibeg] ==
+                $nesting_depth_to_go[$ibeg_next] )
+            {
 
-                # if this is text after closing '}'
-                # then look for an interior token to pad
-                if ( $types_to_go[$ibeg] eq '}' ) {
+                # if this is not first line of the batch ...
+                if ( $line > 0 ) {
 
+                    # and we have leading operator
+                    next if $has_leading_op;
+
+                    # and ..
+                    # 1. the previous line is at lesser depth, or
+                    # 2. the previous line ends in an assignment
+                    #
+                    # Example 1: previous line at lesser depth
+                    #       if (   ( $Year < 1601 )      # <- we are here but
+                    #           || ( $Year > 2899 )      #  list has not yet
+                    #           || ( $EndYear < 1601 )   # collapsed vertically
+                    #           || ( $EndYear > 2899 ) )
+                    #       {
+                    #
+                    # Example 2: previous line ending in assignment:
+                    #    $leapyear =
+                    #        $year % 4   ? 0     # <- We are here
+                    #      : $year % 100 ? 1
+                    #      : $year % 400 ? 0
+                    #      : 1;
+                    next
+                      unless (
+                        $is_assignment{ $types_to_go[$iendm] }
+                        || ( $nesting_depth_to_go[$ibegm] <
+                            $nesting_depth_to_go[$ibeg] )
+                      );
+
+                    # we will add padding before the first token
+                    $ipad = $ibeg;
                 }
 
-                # otherwise, we might pad if it looks really good
+                # for first line of the batch..
                 else {
 
-                    # we might pad token $ibeg, so be sure that it
-                    # is at the same depth as the next line.
-                    next
-                      if ( $nesting_depth_to_go[ $ibeg + 1 ] !=
-                        $nesting_depth_to_go[$ibeg_next] );
+                    # WARNING: Never indent if first line is starting in a
+                    # continued quote, which would change the quote.
+                    next if $starting_in_quote;
 
-                    # We can pad on line 1 of a statement if at least 3
-                    # lines will be aligned. Otherwise, it
-                    # can look very confusing.
-                    if ( $max_line > 2 ) {
-                        my $leading_token = $tokens_to_go[$ibeg_next];
-                        my $count         = 1;
-                        foreach my $l ( 2 .. 3 ) {
-                            my $ibeg_next_next = $$ri_first[ $line + $l ];
-                            next
-                              unless $tokens_to_go[$ibeg_next_next] eq
-                              $leading_token;
-                            $count++;
-                        }
-                        next unless $count == 3;
-                        $ipad = $ibeg;
+                    # if this is text after closing '}'
+                    # then look for an interior token to pad
+                    if ( $types_to_go[$ibeg] eq '}' ) {
+
                     }
+
+                    # otherwise, we might pad if it looks really good
                     else {
-                        next;
+
+                        # we might pad token $ibeg, so be sure that it
+                        # is at the same depth as the next line.
+                        next
+                          if ( $nesting_depth_to_go[ $ibeg + 1 ] !=
+                            $nesting_depth_to_go[$ibeg_next] );
+
+                        # We can pad on line 1 of a statement if at least 3
+                        # lines will be aligned. Otherwise, it
+                        # can look very confusing.
+                        if ( $max_line > 2 ) {
+                            my $leading_token = $tokens_to_go[$ibeg_next];
+
+                            # never indent line 1 of a '.' series because
+                            # previous line is most likely at same level.
+                            # TODO: we should also look at the leasing_spaces
+                            # of the last output line and skip if it is same
+                            # as this line.
+                            next if ( $leading_token eq '.' );
+
+                            my $count = 1;
+                            foreach my $l ( 2 .. 3 ) {
+                                my $ibeg_next_next = $$ri_first[ $line + $l ];
+                                next
+                                  unless $tokens_to_go[$ibeg_next_next] eq
+                                  $leading_token;
+                                $count++;
+                            }
+                            next unless $count == 3;
+                            $ipad = $ibeg;
+                        }
+                        else {
+                            next;
+                        }
                     }
                 }
             }
-        }
 
-        # find interior token to pad if necessary
-        if ( !defined($ipad) ) {
+            # find interior token to pad if necessary
+            if ( !defined($ipad) ) {
 
-            for ( my $i = $ibeg ; ( $i < $iend ) && !$ipad ; $i++ ) {
+                for ( my $i = $ibeg ; ( $i < $iend ) && !$ipad ; $i++ ) {
 
-                # find any unclosed container
-                next
-                  unless ( $type_sequence_to_go[$i]
-                    && $mate_index_to_go[$i] > $iend );
+                    # find any unclosed container
+                    next
+                      unless ( $type_sequence_to_go[$i]
+                        && $mate_index_to_go[$i] > $iend );
 
-                # find next nonblank token to pad
-                $ipad = $i + 1;
-                if ( $types_to_go[$ipad] eq 'b' ) {
-                    $ipad++;
-                    last if ( $ipad > $iend );
+                    # find next nonblank token to pad
+                    $ipad = $i + 1;
+                    if ( $types_to_go[$ipad] eq 'b' ) {
+                        $ipad++;
+                        last if ( $ipad > $iend );
+                    }
                 }
+                last unless $ipad;
             }
-            last unless $ipad;
-        }
-
-        # lines must be somewhat similar to be padded..
-        my $iend_next  = $$ri_last[ $line + 1 ];
-        my $inext_next = $ibeg_next + 1;
-        if ( $types_to_go[$inext_next] eq 'b' ) {
-            $inext_next++;
-        }
-        my $type = $types_to_go[$ipad];
-
-        # see if there are multiple continuation lines
-        my $logical_continuation_lines = 1;
-        if ( $line + 2 <= $max_line ) {
-            my $leading_token  = $tokens_to_go[$ibeg_next];
-            my $ibeg_next_next = $$ri_first[ $line + 2 ];
-            if (   $tokens_to_go[$ibeg_next_next] eq $leading_token
-                && $nesting_depth_to_go[$ibeg_next] eq
-                $nesting_depth_to_go[$ibeg_next_next] )
-            {
-                $logical_continuation_lines++;
-            }
-        }
-        if (
 
             # next line must not be at greater depth
-            $nesting_depth_to_go[ $iend_next + 1 ] <=
-            $nesting_depth_to_go[$ipad]
+            my $iend_next = $$ri_last[ $line + 1 ];
+            next
+              if ( $nesting_depth_to_go[ $iend_next + 1 ] >
+                $nesting_depth_to_go[$ipad] );
 
-            # and ..
-            && (
+            # lines must be somewhat similar to be padded..
+            my $inext_next = $ibeg_next + 1;
+            if ( $types_to_go[$inext_next] eq 'b' ) {
+                $inext_next++;
+            }
+            my $type = $types_to_go[$ipad];
+
+            # see if there are multiple continuation lines
+            my $logical_continuation_lines = 1;
+            if ( $line + 2 <= $max_line ) {
+                my $leading_token  = $tokens_to_go[$ibeg_next];
+                my $ibeg_next_next = $$ri_first[ $line + 2 ];
+                if (   $tokens_to_go[$ibeg_next_next] eq $leading_token
+                    && $nesting_depth_to_go[$ibeg_next] eq
+                    $nesting_depth_to_go[$ibeg_next_next] )
+                {
+                    $logical_continuation_lines++;
+                }
+            }
+            if (
 
                 # either we have multiple continuation lines to follow
                 # and we are not padding the first token
@@ -8735,51 +8894,120 @@ sub set_logical_padding {
                         && $tokens_to_go[$ipad] ne $tokens_to_go[$inext_next]
                     )
                 )
-            )
-          )
-        {
-            my $length_1 = total_line_length( $ibeg,      $ipad - 1 );
-            my $length_2 = total_line_length( $ibeg_next, $inext_next - 1 );
-            $pad_spaces = $length_2 - $length_1;
+              )
+            {
 
-            # make sure this won't change if -lp is used
-            my $indentation_1 = $leading_spaces_to_go[$ibeg];
-            if ( ref($indentation_1) ) {
-                if ( $indentation_1->get_RECOVERABLE_SPACES() == 0 ) {
-                    my $indentation_2 = $leading_spaces_to_go[$ibeg_next];
-                    unless ( $indentation_2->get_RECOVERABLE_SPACES() == 0 ) {
-                        $pad_spaces = 0;
+                #----------------------begin special check---------------
+                #
+                # One more check is needed before we can make the pad.
+                # If we are in a list with some long items, we want each
+                # item to stand out.  So in the following example, the
+                # first line begining with '$casefold->' would look good
+                # padded to align with the next line, but then it
+                # would be indented more than the last line, so we
+                # won't do it.
+                #
+                #  ok(
+                #      $casefold->{code}         eq '0041'
+                #        && $casefold->{status}  eq 'C'
+                #        && $casefold->{mapping} eq '0061',
+                #      'casefold 0x41'
+                #  );
+                #
+                # Note:
+                # It would be faster, and almost as good, to use a comma
+                # count, and not pad if comma_count > 1 and the previous
+                # line did not end with a comma.
+                #
+                my $ok_to_pad = 1;
+
+                my $ibg   = $$ri_first[ $line + 1 ];
+                my $depth = $nesting_depth_to_go[ $ibg + 1 ];
+
+                # just use simplified formula for leading spaces to avoid
+                # needless sub calls
+                my $lsp = $levels_to_go[$ibg] + $ci_levels_to_go[$ibg];
+
+                # look at each line beyond the next ..
+                my $l = $line + 1;
+                foreach $l ( $line + 2 .. $max_line ) {
+                    my $ibg = $$ri_first[$l];
+
+                    # quit looking at the end of this container
+                    last
+                      if ( $nesting_depth_to_go[ $ibg + 1 ] < $depth )
+                      || ( $nesting_depth_to_go[$ibg] < $depth );
+
+                    # cannot do the pad if a later line would be
+                    # outdented more
+                    if ( $levels_to_go[$ibg] + $ci_levels_to_go[$ibg] < $lsp ) {
+                        $ok_to_pad = 0;
+                        last;
                     }
                 }
-            }
 
-            # we might be able to handle a pad of -1 by removing a blank
-            # token
-            if ( $pad_spaces < 0 ) {
-                if ( $pad_spaces == -1 ) {
-                    if ( $ipad > $ibeg && $types_to_go[ $ipad - 1 ] eq 'b' ) {
-                        $tokens_to_go[ $ipad - 1 ] = '';
+                # don't pad if we end in a broken list
+                if ( $l == $max_line ) {
+                    my $i2 = $$ri_last[$l];
+                    if ( $types_to_go[$i2] eq '#' ) {
+                        my $i1 = $$ri_first[$l];
+                        next
+                          if (
+                            terminal_type( \@types_to_go, \@block_type_to_go,
+                                $i1, $i2 ) eq ','
+                          );
                     }
                 }
-                $pad_spaces = 0;
-            }
+                next unless $ok_to_pad;
 
-            # now apply any padding for alignment
-            if ( $ipad >= 0 && $pad_spaces ) {
-                my $length_t = total_line_length( $ibeg, $iend );
-                if ( $pad_spaces + $length_t <= $rOpts_maximum_line_length ) {
-                    $tokens_to_go[$ipad] =
-                      ' ' x $pad_spaces . $tokens_to_go[$ipad];
+                #----------------------end special check---------------
+
+                my $length_1 = total_line_length( $ibeg,      $ipad - 1 );
+                my $length_2 = total_line_length( $ibeg_next, $inext_next - 1 );
+                $pad_spaces = $length_2 - $length_1;
+
+                # make sure this won't change if -lp is used
+                my $indentation_1 = $leading_spaces_to_go[$ibeg];
+                if ( ref($indentation_1) ) {
+                    if ( $indentation_1->get_RECOVERABLE_SPACES() == 0 ) {
+                        my $indentation_2 = $leading_spaces_to_go[$ibeg_next];
+                        unless ( $indentation_2->get_RECOVERABLE_SPACES() == 0 )
+                        {
+                            $pad_spaces = 0;
+                        }
+                    }
+                }
+
+                # we might be able to handle a pad of -1 by removing a blank
+                # token
+                if ( $pad_spaces < 0 ) {
+                    if ( $pad_spaces == -1 ) {
+                        if ( $ipad > $ibeg && $types_to_go[ $ipad - 1 ] eq 'b' )
+                        {
+                            $tokens_to_go[ $ipad - 1 ] = '';
+                        }
+                    }
+                    $pad_spaces = 0;
+                }
+
+                # now apply any padding for alignment
+                if ( $ipad >= 0 && $pad_spaces ) {
+                    my $length_t = total_line_length( $ibeg, $iend );
+                    if ( $pad_spaces + $length_t <= $rOpts_maximum_line_length )
+                    {
+                        $tokens_to_go[$ipad] =
+                          ' ' x $pad_spaces . $tokens_to_go[$ipad];
+                    }
                 }
             }
         }
+        continue {
+            $iendm          = $iend;
+            $ibegm          = $ibeg;
+            $has_leading_op = $has_leading_op_next;
+        }    # end of loop over lines
+        return;
     }
-    continue {
-        $iendm          = $iend;
-        $ibegm          = $ibeg;
-        $has_leading_op = $has_leading_op_next;
-    }    # end of loop over lines
-    return;
 }
 
 sub correct_lp_indentation {
@@ -9434,14 +9662,10 @@ sub accumulate_block_text {
                 }
             }
 
-            if (
-                   $type eq 'k'
+            if (   $type eq 'k'
                 && $csc_new_statement_ok
-
-                #  /^(else|if|elsif|unless|while|until|for|foreach)$/
                 && $is_if_elsif_else_unless_while_until_for_foreach{$token}
-                && $token =~ /$closing_side_comment_list_pattern/o
-              )
+                && $token =~ /$closing_side_comment_list_pattern/o )
             {
                 set_block_text_accumulator($i);
             }
@@ -9768,6 +9992,7 @@ sub send_lines_to_vertical_aligner {
 
     # loop to prepare each line for shipment
     my $n_last_line = @$ri_first - 1;
+    my $in_comma_list;
     for my $n ( 0 .. $n_last_line ) {
         my $ibeg = $$ri_first[$n];
         my $iend = $$ri_last[$n];
@@ -9844,11 +10069,11 @@ sub send_lines_to_vertical_aligner {
 
                 # concatenate the text of the consecutive tokens to form
                 # the field
-                push ( @fields,
-                    join ( '', @tokens_to_go[ $i_start .. $i - 1 ] ) );
+                push( @fields,
+                    join( '', @tokens_to_go[ $i_start .. $i - 1 ] ) );
 
                 # store the alignment token for this field
-                push ( @tokens, $tok );
+                push( @tokens, $tok );
 
                 # get ready for the next batch
                 $i_start = $i;
@@ -9893,7 +10118,7 @@ sub send_lines_to_vertical_aligner {
         }
 
         # done with this line .. join text of tokens to make the last field
-        push ( @fields, join ( '', @tokens_to_go[ $i_start .. $iend ] ) );
+        push( @fields, join( '', @tokens_to_go[ $i_start .. $iend ] ) );
 
         my ( $indentation, $lev, $level_end, $is_semicolon_terminated,
             $is_outdented_line )
@@ -9930,14 +10155,23 @@ sub send_lines_to_vertical_aligner {
         Perl::Tidy::VerticalAligner::flush() if ($is_outdented_line);
 
         # send this new line down the pipe
+        my $forced_breakpoint = $forced_breakpoint_to_go[$iend];
         Perl::Tidy::VerticalAligner::append_line(
-            $lev,                            $level_end,
-            $indentation,                    \@fields,
-            \@tokens,                        \@patterns,
-            $forced_breakpoint_to_go[$iend], $outdent_long_lines,
-            $is_semicolon_terminated,        $do_not_pad,
-            $rvertical_tightness_flags,      $level_jump,
+            $lev,
+            $level_end,
+            $indentation,
+            \@fields,
+            \@tokens,
+            \@patterns,
+            $forced_breakpoint_to_go[$iend] || $in_comma_list,
+            $outdent_long_lines,
+            $is_semicolon_terminated,
+            $do_not_pad,
+            $rvertical_tightness_flags,
+            $level_jump,
         );
+        $in_comma_list =
+          $tokens_to_go[$iend] eq ',' && $forced_breakpoint_to_go[$iend];
 
         # flush an outdented line to avoid any unwanted vertical alignment
         Perl::Tidy::VerticalAligner::flush() if ($is_outdented_line);
@@ -10490,8 +10724,7 @@ sub set_vertical_tightness_flags {
                 my $ok = 0;
                 if ( $cvt == 2 || $iend_next == $ibeg_next ) { $ok = 1 }
                 else {
-                    my $str =
-                      join ( '',
+                    my $str = join( '',
                         @types_to_go[ $ibeg_next + 1 .. $ibeg_next + 2 ] );
 
                     # append closing token if followed by comment or ';'
@@ -10529,10 +10762,14 @@ sub set_vertical_tightness_flags {
     my %is_vertical_alignment_keyword;
 
     BEGIN {
-        @_ = qw#{ ? : => = += -= =~ *= /= && || ||= #;
+
+        @_ = qw#
+          = **= += *= &= <<= &&= -= /= |= >>= ||= .= %= ^= x=
+          { ? : => =~ && ||
+          #;
         @is_vertical_alignment_type{@_} = (1) x scalar(@_);
 
-        @_ = qw(if unless and or eq ne);
+        @_ = qw(if unless and or eq ne for foreach while until);
         @is_vertical_alignment_keyword{@_} = (1) x scalar(@_);
     }
 
@@ -10555,16 +10792,17 @@ sub set_vertical_tightness_flags {
         # look at each line of this batch..
         my $last_vertical_alignment_before_index;
         my $vert_last_nonblank_type;
+        my $vert_last_nonblank_token;
         my $vert_last_nonblank_block_type;
         my $max_line = @$ri_first - 1;
-        my ( $i, $type, $token, $block_type, $last_nonblank_token,
-            $alignment_type );
+        my ( $i, $type, $token, $block_type, $alignment_type );
         my ( $ibeg, $iend, $line );
         foreach $line ( 0 .. $max_line ) {
             $ibeg                                 = $$ri_first[$line];
             $iend                                 = $$ri_last[$line];
             $last_vertical_alignment_before_index = -1;
             $vert_last_nonblank_type              = '';
+            $vert_last_nonblank_token             = '';
             $vert_last_nonblank_block_type        = '';
 
             # look at each token in this output line..
@@ -10633,22 +10871,19 @@ sub set_vertical_tightness_flags {
                     }
                 }
 
-             # We have to be very careful about alignment before opening parens.
-             # It is ok to line up sequences like this:
-             #    if    ( $something eq "simple" )  { &handle_simple }
-             #    elsif ( $something eq "hard" )    { &handle_hard }
-                elsif ( $type eq '(' ) {
-                    if ( ( $i == $ibeg + 2 )
-                        && $tokens_to_go[$ibeg] =~ /^(if|elsif)/ )
-                    {
-                        $alignment_type = $type;
-                    }
-                }
-
                 # align before one of these types..
                 # Note: add '.' after new vertical aligner is operational
                 elsif ( $is_vertical_alignment_type{$type} ) {
                     $alignment_type = $token;
+
+                    # For a paren after keyword, only align something like this:
+                    #    if    ( $a ) { &a }
+                    #    elsif ( $b ) { &b }
+                    if ( $token eq '(' && $vert_last_nonblank_type eq 'k' ) {
+                        $alignment_type = ""
+                          unless $vert_last_nonblank_token =~
+                          /^(if|unless|elsif)$/;
+                    }
 
                     # be sure the alignment tokens are unique
                     # This didn't work well: reason not determined
@@ -10703,6 +10938,7 @@ sub set_vertical_tightness_flags {
                 $matching_token_to_go[$i] = $alignment_type;
                 if ( $type ne 'b' ) {
                     $vert_last_nonblank_type       = $type;
+                    $vert_last_nonblank_token      = $token;
                     $vert_last_nonblank_block_type = $block_type;
                 }
             }
@@ -10739,7 +10975,7 @@ sub terminal_type {
             if (
                 $terminal_type eq '}'
                 && ( !$$rblock_type[$i]
-                    || ( $$rblock_type[$i] =~ /^(sort|grep|map|do|eval)$/ ) )
+                    || ( $is_sort_map_grep_eval_do{ $$rblock_type[$i] } ) )
               )
             {
                 $terminal_type = 'b';
@@ -10752,654 +10988,694 @@ sub terminal_type {
     }
 }
 
-sub set_bond_strengths {
+{
+    my %is_good_keyword_breakpoint;
+    my %is_lt_gt_le_ge;
 
-    BEGIN {
+    sub set_bond_strengths {
 
-        ###############################################################
-        # NOTE: NO_BREAK's set here are HINTS which may not be honored;
-        # essential NO_BREAKS's must be enforced in section 2, below.
-        ###############################################################
+        BEGIN {
 
-        # adding NEW_TOKENS: add a left and right bond strength by
-        # mimmicking what is done for an existing token type.  You
-        # can skip this step at first and take the default, then
-        # tweak later to get desired results.
+            @_ = qw(if unless while until for foreach);
+            @is_good_keyword_breakpoint{@_} = (1) x scalar(@_);
 
-        # The bond strengths should roughly follow precenence order where
-        # possible.  If you make changes, please check the results very
-        # carefully on a variety of scripts.
+            @_ = qw(lt gt le ge);
+            @is_lt_gt_le_ge{@_} = (1) x scalar(@_);
 
-        # no break around possible filehandle
-        $left_bond_strength{'Z'}  = NO_BREAK;
-        $right_bond_strength{'Z'} = NO_BREAK;
+            ###############################################################
+            # NOTE: NO_BREAK's set here are HINTS which may not be honored;
+            # essential NO_BREAKS's must be enforced in section 2, below.
+            ###############################################################
 
-        # never put a bare word on a new line:
-        # example print (STDERR, "bla"); will fail with break after (
-        $left_bond_strength{'w'} = NO_BREAK;
+            # adding NEW_TOKENS: add a left and right bond strength by
+            # mimmicking what is done for an existing token type.  You
+            # can skip this step at first and take the default, then
+            # tweak later to get desired results.
+
+            # The bond strengths should roughly follow precenence order where
+            # possible.  If you make changes, please check the results very
+            # carefully on a variety of scripts.
+
+            # no break around possible filehandle
+            $left_bond_strength{'Z'}  = NO_BREAK;
+            $right_bond_strength{'Z'} = NO_BREAK;
+
+            # never put a bare word on a new line:
+            # example print (STDERR, "bla"); will fail with break after (
+            $left_bond_strength{'w'} = NO_BREAK;
 
         # blanks always have infinite strength to force breaks after real tokens
-        $right_bond_strength{'b'} = NO_BREAK;
+            $right_bond_strength{'b'} = NO_BREAK;
 
-        # try not to break on exponentation
-        @_                       = qw" ** .. ... <=> ";
-        @left_bond_strength{@_}  = (STRONG) x scalar(@_);
-        @right_bond_strength{@_} = (STRONG) x scalar(@_);
+            # try not to break on exponentation
+            @_                       = qw" ** .. ... <=> ";
+            @left_bond_strength{@_}  = (STRONG) x scalar(@_);
+            @right_bond_strength{@_} = (STRONG) x scalar(@_);
 
-        # The comma-arrow has very low precedence but not a good break point
-        $left_bond_strength{'=>'}  = NO_BREAK;
-        $right_bond_strength{'=>'} = NOMINAL;
+            # The comma-arrow has very low precedence but not a good break point
+            $left_bond_strength{'=>'}  = NO_BREAK;
+            $right_bond_strength{'=>'} = NOMINAL;
 
-        # ok to break after label
-        $left_bond_strength{'J'}  = NO_BREAK;
-        $right_bond_strength{'J'} = NOMINAL;
-        $left_bond_strength{'j'}  = STRONG;
-        $right_bond_strength{'j'} = STRONG;
-        $left_bond_strength{'A'}  = STRONG;
-        $right_bond_strength{'A'} = STRONG;
+            # ok to break after label
+            $left_bond_strength{'J'}  = NO_BREAK;
+            $right_bond_strength{'J'} = NOMINAL;
+            $left_bond_strength{'j'}  = STRONG;
+            $right_bond_strength{'j'} = STRONG;
+            $left_bond_strength{'A'}  = STRONG;
+            $right_bond_strength{'A'} = STRONG;
 
-        $left_bond_strength{'->'}  = STRONG;
-        $right_bond_strength{'->'} = VERY_STRONG;
+            $left_bond_strength{'->'}  = STRONG;
+            $right_bond_strength{'->'} = VERY_STRONG;
 
-        # breaking AFTER these is just ok:
-        @_                       = qw" % + - * / x  ";
-        @left_bond_strength{@_}  = (STRONG) x scalar(@_);
-        @right_bond_strength{@_} = (NOMINAL) x scalar(@_);
+            # breaking AFTER these is just ok:
+            @_                       = qw" % + - * / x  ";
+            @left_bond_strength{@_}  = (STRONG) x scalar(@_);
+            @right_bond_strength{@_} = (NOMINAL) x scalar(@_);
 
-        # breaking BEFORE these is just ok:
-        @_                       = qw" >> << ";
-        @right_bond_strength{@_} = (STRONG) x scalar(@_);
-        @left_bond_strength{@_}  = (NOMINAL) x scalar(@_);
+            # breaking BEFORE these is just ok:
+            @_                       = qw" >> << ";
+            @right_bond_strength{@_} = (STRONG) x scalar(@_);
+            @left_bond_strength{@_}  = (NOMINAL) x scalar(@_);
 
-        # I prefer breaking before the string concatenation operator
-        # because it can be hard to see at the end of a line
-        # swap these to break after a '.'
-        # this could be a future option
-        $right_bond_strength{'.'} = STRONG;
-        $left_bond_strength{'.'}  = 0.9 * NOMINAL + 0.1 * WEAK;
+            # I prefer breaking before the string concatenation operator
+            # because it can be hard to see at the end of a line
+            # swap these to break after a '.'
+            # this could be a future option
+            $right_bond_strength{'.'} = STRONG;
+            $left_bond_strength{'.'}  = 0.9 * NOMINAL + 0.1 * WEAK;
 
-        @_                       = qw"} ] ) ";
-        @left_bond_strength{@_}  = (STRONG) x scalar(@_);
-        @right_bond_strength{@_} = (NOMINAL) x scalar(@_);
+            @_                       = qw"} ] ) ";
+            @left_bond_strength{@_}  = (STRONG) x scalar(@_);
+            @right_bond_strength{@_} = (NOMINAL) x scalar(@_);
 
-        # make these a little weaker than nominal so that they get
-        # favored for end-of-line characters
-        @_                       = qw"!= == =~ !~";
-        @left_bond_strength{@_}  = (STRONG) x scalar(@_);
-        @right_bond_strength{@_} = ( 0.9 * NOMINAL + 0.1 * WEAK ) x scalar(@_);
+            # make these a little weaker than nominal so that they get
+            # favored for end-of-line characters
+            @_                       = qw"!= == =~ !~";
+            @left_bond_strength{@_}  = (STRONG) x scalar(@_);
+            @right_bond_strength{@_} =
+              ( 0.9 * NOMINAL + 0.1 * WEAK ) x scalar(@_);
 
-        # break AFTER these
-        @_                       = qw" < >  | & >= <=";
-        @left_bond_strength{@_}  = (VERY_STRONG) x scalar(@_);
-        @right_bond_strength{@_} = ( 0.8 * NOMINAL + 0.2 * WEAK ) x scalar(@_);
+            # break AFTER these
+            @_                       = qw" < >  | & >= <=";
+            @left_bond_strength{@_}  = (VERY_STRONG) x scalar(@_);
+            @right_bond_strength{@_} =
+              ( 0.8 * NOMINAL + 0.2 * WEAK ) x scalar(@_);
 
-        # breaking either before or after a quote is ok
-        # but bias for breaking before a quote
-        $left_bond_strength{'Q'}  = NOMINAL;
-        $right_bond_strength{'Q'} = NOMINAL + 0.02;
-        $left_bond_strength{'q'}  = NOMINAL;
-        $right_bond_strength{'q'} = NOMINAL;
+            # breaking either before or after a quote is ok
+            # but bias for breaking before a quote
+            $left_bond_strength{'Q'}  = NOMINAL;
+            $right_bond_strength{'Q'} = NOMINAL + 0.02;
+            $left_bond_strength{'q'}  = NOMINAL;
+            $right_bond_strength{'q'} = NOMINAL;
 
-        # starting a line with a keyword is usually ok
-        $left_bond_strength{'k'} = NOMINAL;
+            # starting a line with a keyword is usually ok
+            $left_bond_strength{'k'} = NOMINAL;
 
-        # we usually want to bond a keyword strongly to what immediately
-        # follows, rather than leaving it stranded at the end of a line
-        $right_bond_strength{'k'} = STRONG;
+            # we usually want to bond a keyword strongly to what immediately
+            # follows, rather than leaving it stranded at the end of a line
+            $right_bond_strength{'k'} = STRONG;
 
-        $left_bond_strength{'G'}  = NOMINAL;
-        $right_bond_strength{'G'} = STRONG;
+            $left_bond_strength{'G'}  = NOMINAL;
+            $right_bond_strength{'G'} = STRONG;
 
-        # it is very good to break AFTER various assignment operators
-        @_ = qw(
-          = **= += *= &= <<= &&=
-          -= /= |= >>= ||=
-          .= %= ^=
-          x=
+            # it is very good to break AFTER various assignment operators
+            @_ = qw(
+              = **= += *= &= <<= &&=
+              -= /= |= >>= ||=
+              .= %= ^=
+              x=
+            );
+            @left_bond_strength{@_}  = (STRONG) x scalar(@_);
+            @right_bond_strength{@_} =
+              ( 0.4 * WEAK + 0.6 * VERY_WEAK ) x scalar(@_);
+
+            # break BEFORE '&&' and '||'
+            # set strength of '||' to same as '=' so that chains like
+            # $a = $b || $c || $d   will break before the first '||'
+            $right_bond_strength{'||'} = NOMINAL;
+            $left_bond_strength{'||'}  = $right_bond_strength{'='};
+
+            # set strength of && a little higher than ||
+            $right_bond_strength{'&&'} = NOMINAL;
+            $left_bond_strength{'&&'}  = $left_bond_strength{'||'} + 0.1;
+
+            $left_bond_strength{';'}  = VERY_STRONG;
+            $right_bond_strength{';'} = VERY_WEAK;
+            $left_bond_strength{'f'}  = VERY_STRONG;
+
+            # make right strength of for ';' a little less than '='
+            # to make for contents break after the ';' to avoid this:
+            #   for ( $j = $number_of_fields - 1 ; $j < $item_count ; $j +=
+            #     $number_of_fields )
+            # and make it weaker than ',' and 'and' too
+            $right_bond_strength{'f'} = VERY_WEAK - 0.03;
+
+            # The strengths of ?/: should be somewhere between
+            # an '=' and a quote (NOMINAL),
+            # make strength of ':' slightly less than '?' to help
+            # break long chains of ? : after the colons
+            $left_bond_strength{':'}  = 0.4 * WEAK + 0.6 * NOMINAL;
+            $right_bond_strength{':'} = NO_BREAK;
+            $left_bond_strength{'?'}  = $left_bond_strength{':'} + 0.01;
+            $right_bond_strength{'?'} = NO_BREAK;
+
+            $left_bond_strength{','}  = VERY_STRONG;
+            $right_bond_strength{','} = VERY_WEAK;
+        }
+
+        # patch-its always ok to break at end of line
+        $nobreak_to_go[$max_index_to_go] = 0;
+
+        # adding a small 'bias' to strengths is a simple way to make a line
+        # break at the first of a sequence of identical terms.  For example,
+        # to force long string of conditional operators to break with
+        # each line ending in a ':', we can add a small number to the bond
+        # strength of each ':'
+        my $colon_bias = 0;
+        my $amp_bias   = 0;
+        my $bar_bias   = 0;
+        my $and_bias   = 0;
+        my $or_bias    = 0;
+        my $dot_bias   = 0;
+        my $f_bias     = 0;
+        my $code_bias  = -.01;
+        my $type       = 'b';
+        my $token      = ' ';
+        my $last_type;
+        my $last_nonblank_type  = $type;
+        my $last_nonblank_token = $token;
+        my $delta_bias          = 0.0001;
+        my $list_str            = $left_bond_strength{'?'};
+
+        my ( $block_type, $i_next, $i_next_nonblank, $next_nonblank_token,
+            $next_nonblank_type, $next_token, $next_type, $total_nesting_depth,
         );
-        @left_bond_strength{@_}  = (STRONG) x scalar(@_);
-        @right_bond_strength{@_} =
-          ( 0.4 * WEAK + 0.6 * VERY_WEAK ) x scalar(@_);
 
-        # break BEFORE '&&' and '||'
-        # set strength of '||' to same as '=' so that chains like
-        # $a = $b || $c || $d   will break before the first '||'
-        $right_bond_strength{'||'} = NOMINAL;
-        $left_bond_strength{'||'}  = $right_bond_strength{'='};
-
-        # set strength of && a little higher than ||
-        $right_bond_strength{'&&'} = NOMINAL;
-        $left_bond_strength{'&&'}  = $left_bond_strength{'||'} + 0.1;
-
-        $left_bond_strength{';'}  = VERY_STRONG;
-        $right_bond_strength{';'} = VERY_WEAK;
-        $left_bond_strength{'f'}  = VERY_STRONG;
-
-        # make right strength of for ';' a little less than '='
-        # to make for contents break after the ';' to avoid this:
-        #   for ( $j = $number_of_fields - 1 ; $j < $item_count ; $j +=
-        #     $number_of_fields )
-        # and make it weaker than ',' and 'and' too
-        $right_bond_strength{'f'} = VERY_WEAK - 0.03;
-
-        # The strengths of ?/: should be somewhere between
-        # an '=' and a quote (NOMINAL),
-        # make strength of ':' slightly less than '?' to help
-        # break long chains of ? : after the colons
-        $left_bond_strength{':'}  = 0.4 * WEAK + 0.6 * NOMINAL;
-        $right_bond_strength{':'} = NO_BREAK;
-        $left_bond_strength{'?'}  = $left_bond_strength{':'} + 0.01;
-        $right_bond_strength{'?'} = NO_BREAK;
-
-        $left_bond_strength{','}  = VERY_STRONG;
-        $right_bond_strength{','} = VERY_WEAK;
-    }
-
-    # patch-its always ok to break at end of line
-    $nobreak_to_go[$max_index_to_go] = 0;
-
-    # adding a small 'bias' to strengths is a simple way to make a line
-    # break at the first of a sequence of identical terms.  For example,
-    # to force long string of conditional operators to break with
-    # each line ending in a ':', we can add a small number to the bond
-    # strength of each ':'
-    my $colon_bias = 0;
-    my $amp_bias   = 0;
-    my $bar_bias   = 0;
-    my $and_bias   = 0;
-    my $or_bias    = 0;
-    my $dot_bias   = 0;
-    my $f_bias     = 0;
-    my $code_bias  = -.01;
-    my $type       = 'b';
-    my $token      = ' ';
-    my $last_type;
-    my $last_nonblank_type  = $type;
-    my $last_nonblank_token = $token;
-    my $delta_bias          = 0.0001;
-    my $list_str            = $left_bond_strength{'?'};
-
-    my ( $block_type, $i_next, $i_next_nonblank, $next_nonblank_token,
-        $next_nonblank_type, $next_token, $next_type, $total_nesting_depth, );
-
-    # preliminary loop to compute bond strengths
-    for ( my $i = 0 ; $i <= $max_index_to_go ; $i++ ) {
-        $last_type = $type;
-        if ( $type ne 'b' ) {
-            $last_nonblank_type  = $type;
-            $last_nonblank_token = $token;
-        }
-        $type = $types_to_go[$i];
-
-        # strength on both sides of a blank is the same
-        if ( $type eq 'b' && $last_type ne 'b' ) {
-            $bond_strength_to_go[$i] = $bond_strength_to_go[ $i - 1 ];
-            next;
-        }
-
-        $token               = $tokens_to_go[$i];
-        $block_type          = $block_type_to_go[$i];
-        $i_next              = $i + 1;
-        $next_type           = $types_to_go[$i_next];
-        $next_token          = $tokens_to_go[$i_next];
-        $total_nesting_depth = $nesting_depth_to_go[$i_next];
-        $i_next_nonblank     = ( ( $next_type eq 'b' ) ? $i + 2 : $i + 1 );
-        $next_nonblank_type  = $types_to_go[$i_next_nonblank];
-        $next_nonblank_token = $tokens_to_go[$i_next_nonblank];
-
-        # Some token chemistry...  The decision about where to break a
-        # line depends upon a "bond strength" between tokens.  The LOWER
-        # the bond strength, the MORE likely a break.  The strength
-        # values are based on trial-and-error, and need to be tweaked
-        # occasionally to get desired results.  Things to keep in mind
-        # are:
-        #   1. relative strengths are important.  small differences
-        #      in strengths can make big formatting differences.
-        #   2. each indentation level adds one unit of bond strength
-        #   3. a value of NO_BREAK makes an unbreakable bond
-        #   4. a value of VERY_WEAK is the strength of a ','
-        #   5. values below NOMINAL are considered ok break points
-        #   6. values above NOMINAL are considered poor break points
-        # We are computing the strength of the bond between the current
-        # token and the NEXT token.
-        my $bond_str = VERY_STRONG;    # a default, high strength
-
-        #---------------------------------------------------------------
-        # section 1:
-        # use minimum of left and right bond strengths if defined;
-        # digraphs and trigraphs like to break on their left
-        #---------------------------------------------------------------
-        my $bsr = $right_bond_strength{$type};
-
-        if ( !defined($bsr) ) {
-
-            if ( $is_digraph{$type} || $is_trigraph{$type} ) {
-                $bsr = STRONG;
+        # preliminary loop to compute bond strengths
+        for ( my $i = 0 ; $i <= $max_index_to_go ; $i++ ) {
+            $last_type = $type;
+            if ( $type ne 'b' ) {
+                $last_nonblank_type  = $type;
+                $last_nonblank_token = $token;
             }
-            else {
-                $bsr = VERY_STRONG;
+            $type = $types_to_go[$i];
+
+            # strength on both sides of a blank is the same
+            if ( $type eq 'b' && $last_type ne 'b' ) {
+                $bond_strength_to_go[$i] = $bond_strength_to_go[ $i - 1 ];
+                next;
             }
-        }
 
-        if ( $token eq 'and' or $token eq 'or' ) {
-            $bsr = NOMINAL;
-        }
-        elsif ( $token eq 'ne' or $token eq 'eq' ) {
-            $bsr = NOMINAL;
-        }
-        my $bsl = $left_bond_strength{$next_nonblank_type};
+            $token               = $tokens_to_go[$i];
+            $block_type          = $block_type_to_go[$i];
+            $i_next              = $i + 1;
+            $next_type           = $types_to_go[$i_next];
+            $next_token          = $tokens_to_go[$i_next];
+            $total_nesting_depth = $nesting_depth_to_go[$i_next];
+            $i_next_nonblank     = ( ( $next_type eq 'b' ) ? $i + 2 : $i + 1 );
+            $next_nonblank_type  = $types_to_go[$i_next_nonblank];
+            $next_nonblank_token = $tokens_to_go[$i_next_nonblank];
 
-        # set terminal bond strength to the nominal value
-        # this will cause good preceding breaks to be retained
-        if ( $i_next_nonblank > $max_index_to_go ) {
-            $bsl = NOMINAL;
-        }
+            # Some token chemistry...  The decision about where to break a
+            # line depends upon a "bond strength" between tokens.  The LOWER
+            # the bond strength, the MORE likely a break.  The strength
+            # values are based on trial-and-error, and need to be tweaked
+            # occasionally to get desired results.  Things to keep in mind
+            # are:
+            #   1. relative strengths are important.  small differences
+            #      in strengths can make big formatting differences.
+            #   2. each indentation level adds one unit of bond strength
+            #   3. a value of NO_BREAK makes an unbreakable bond
+            #   4. a value of VERY_WEAK is the strength of a ','
+            #   5. values below NOMINAL are considered ok break points
+            #   6. values above NOMINAL are considered poor break points
+            # We are computing the strength of the bond between the current
+            # token and the NEXT token.
+            my $bond_str = VERY_STRONG;    # a default, high strength
 
-        if ( !defined($bsl) ) {
+            #---------------------------------------------------------------
+            # section 1:
+            # use minimum of left and right bond strengths if defined;
+            # digraphs and trigraphs like to break on their left
+            #---------------------------------------------------------------
+            my $bsr = $right_bond_strength{$type};
 
-            if (   $is_digraph{$next_nonblank_type}
-                || $is_trigraph{$next_nonblank_type} )
+            if ( !defined($bsr) ) {
+
+                if ( $is_digraph{$type} || $is_trigraph{$type} ) {
+                    $bsr = STRONG;
+                }
+                else {
+                    $bsr = VERY_STRONG;
+                }
+            }
+
+            if ( $token eq 'and' or $token eq 'or' ) {
+                $bsr = NOMINAL;
+            }
+            elsif ( $token eq 'ne' or $token eq 'eq' ) {
+                $bsr = NOMINAL;
+            }
+            my $bsl = $left_bond_strength{$next_nonblank_type};
+
+            # set terminal bond strength to the nominal value
+            # this will cause good preceding breaks to be retained
+            if ( $i_next_nonblank > $max_index_to_go ) {
+                $bsl = NOMINAL;
+            }
+
+            if ( !defined($bsl) ) {
+
+                if (   $is_digraph{$next_nonblank_type}
+                    || $is_trigraph{$next_nonblank_type} )
+                {
+                    $bsl = WEAK;
+                }
+                else {
+                    $bsl = VERY_STRONG;
+                }
+            }
+
+            # make or, and slightly weaker than a ','
+            if ( $next_nonblank_token eq 'or' ) {
+                $bsl = VERY_WEAK - 0.02;
+            }
+            if ( $next_nonblank_token eq 'and' ) {
+                $bsl = VERY_WEAK - 0.01;
+            }
+            elsif ($next_nonblank_token eq 'ne'
+                or $next_nonblank_token eq 'eq' )
             {
-                $bsl = WEAK;
+                $bsl = NOMINAL;
             }
-            else {
-                $bsl = VERY_STRONG;
+            elsif ( $is_lt_gt_le_ge{$next_nonblank_token} ) {
+                $bsl = 0.9 * NOMINAL + 0.1 * STRONG;
             }
-        }
 
-        # make or, and slightly weaker than a ','
-        if ( $next_nonblank_token eq 'or' ) {
-            $bsl = VERY_WEAK - 0.02;
-        }
-        if ( $next_nonblank_token eq 'and' ) {
-            $bsl = VERY_WEAK - 0.01;
-        }
-        elsif ( $next_nonblank_token eq 'ne' or $next_nonblank_token eq 'eq' ) {
-            $bsl = NOMINAL;
-        }
-        elsif ( $next_nonblank_token =~ /^(lt|gt|le|ge)$/ ) {
-            $bsl = 0.9 * NOMINAL + 0.1 * STRONG;
-        }
+            # Note: it might seem that we would want to keep a NO_BREAK if
+            # either token has this value.  This didn't work, because in an
+            # arrow list, it prevents the comma from separating from the
+            # following bare word (which is probably quoted by its arrow).
+            # So necessary NO_BREAK's have to be handled as special cases
+            # in the final section.
+            $bond_str = ( $bsr < $bsl ) ? $bsr : $bsl;
+            my $bond_str_1 = $bond_str;
 
-        # Note: it might seem that we would want to keep a NO_BREAK if
-        # either token has this value.  This didn't work, because in an
-        # arrow list, it prevents the comma from separating from the
-        # following bare word (which is probably quoted by its arrow).
-        # So necessary NO_BREAK's have to be handled as special cases
-        # in the final section.
-        $bond_str = ( $bsr < $bsl ) ? $bsr : $bsl;
-        my $bond_str_1 = $bond_str;
+            #---------------------------------------------------------------
+            # section 2:
+            # special cases
+            #---------------------------------------------------------------
 
-        #---------------------------------------------------------------
-        # section 2:
-        # special cases
-        #---------------------------------------------------------------
-
-        # allow long lines before final { in an if statement, as in:
-        #    if (..........
-        #      ..........)
-        #    {
-        #
-        # Otherwise, the line before the { tends to be too short.
-        if ( $type eq ')' ) {
-            if ( $next_nonblank_type eq '{' ) {
-                $bond_str = VERY_WEAK + 0.03;
+            # allow long lines before final { in an if statement, as in:
+            #    if (..........
+            #      ..........)
+            #    {
+            #
+            # Otherwise, the line before the { tends to be too short.
+            if ( $type eq ')' ) {
+                if ( $next_nonblank_type eq '{' ) {
+                    $bond_str = VERY_WEAK + 0.03;
+                }
             }
-        }
 
-        elsif ( $type eq '(' ) {
-            if ( $next_nonblank_type eq '{' ) {
-                $bond_str = NOMINAL;
+            elsif ( $type eq '(' ) {
+                if ( $next_nonblank_type eq '{' ) {
+                    $bond_str = NOMINAL;
+                }
             }
-        }
 
-        # break on something like '} (', but keep this stronger than a ','
-        # example is in 'howe.pl'
-        elsif ( $type eq 'R' or $type eq '}' ) {
-            if ( $next_nonblank_type eq '(' ) {
-                $bond_str = 0.8 * VERY_WEAK + 0.2 * WEAK;
+            # break on something like '} (', but keep this stronger than a ','
+            # example is in 'howe.pl'
+            elsif ( $type eq 'R' or $type eq '}' ) {
+                if ( $next_nonblank_type eq '(' ) {
+                    $bond_str = 0.8 * VERY_WEAK + 0.2 * WEAK;
+                }
             }
-        }
 
-        #-----------------------------------------------------------------
-        # adjust bond strength bias
-        #-----------------------------------------------------------------
+            #-----------------------------------------------------------------
+            # adjust bond strength bias
+            #-----------------------------------------------------------------
 
-        elsif ( $type eq 'f' ) {
-            $bond_str += $f_bias;
-            $f_bias   += $delta_bias;
-        }
+            elsif ( $type eq 'f' ) {
+                $bond_str += $f_bias;
+                $f_bias   += $delta_bias;
+            }
 
-        # in long ?: conditionals, bias toward just one set per line (colon.t)
-        elsif ( $type eq ':' ) {
-            if ( !$want_break_before{$type} ) {
+          # in long ?: conditionals, bias toward just one set per line (colon.t)
+            elsif ( $type eq ':' ) {
+                if ( !$want_break_before{$type} ) {
+                    $bond_str   += $colon_bias;
+                    $colon_bias += $delta_bias;
+                }
+            }
+
+            if (   $next_nonblank_type eq ':'
+                && $want_break_before{$next_nonblank_type} )
+            {
                 $bond_str   += $colon_bias;
                 $colon_bias += $delta_bias;
             }
-        }
 
-        if (   $next_nonblank_type eq ':'
-            && $want_break_before{$next_nonblank_type} )
-        {
-            $bond_str   += $colon_bias;
-            $colon_bias += $delta_bias;
-        }
-
-        # if leading '.' is used, align all but 'short' quotes;
-        # the idea is to not place something like "\n" on a single line.
-        elsif ( $next_nonblank_type eq '.' ) {
-            if ( $want_break_before{'.'} ) {
-                unless (
-                    $last_nonblank_type eq '.'
-                    && (
-                        length($token) <=
-                        $rOpts_short_concatenation_item_length )
-                    && ( $token !~ /^[\)\]\}]$/ )
-                  )
-                {
-                    $dot_bias += $delta_bias;
-                }
-                $bond_str += $dot_bias;
-            }
-        }
-        elsif ( $next_nonblank_type eq '&&' ) {
-            $bond_str += $amp_bias;
-            $amp_bias += $delta_bias;
-        }
-        elsif ( $next_nonblank_type eq '||' ) {
-            $bond_str += $bar_bias;
-            $bar_bias += $delta_bias;
-        }
-        elsif ( $next_nonblank_type eq 'k' ) {
-
-            if ( $next_nonblank_token eq 'and' ) {
-                $bond_str += $and_bias;
-                $and_bias += $delta_bias;
-            }
-            elsif ( $next_nonblank_token eq 'or' ) {
-                $bond_str += $or_bias;
-                $or_bias  += $delta_bias;
-            }
-
-            # FIXME: needs more testing
-            elsif ( $is_keyword_returning_list{$next_nonblank_token} ) {
-                $bond_str = $list_str if ( $bond_str > $list_str );
-            }
-        }
-
-        # keep matrix and hash indices together
-        # but make them a little below STRONG to allow breaking open
-        # something like {'some-word'}{'some-very-long-word'} at the }{
-        # (bracebrk.t)
-        if (   ( $type eq ']' or $type eq 'R' )
-            && ( $next_nonblank_type eq '[' or $next_nonblank_type eq 'L' ) )
-        {
-            $bond_str = 0.9 * STRONG + 0.1 * NOMINAL;
-        }
-
-        if ( $next_nonblank_type eq 'i' && $next_nonblank_token =~ /^->/ ) {
-
-            # increase strength to the point where a break in the following
-            # will be after the opening paren rather than at the arrow:
-            #    $a->$b($c);
-            if ( $type eq 'i' ) {
-                $bond_str = 1.45 * STRONG;
-            }
-
-            elsif ( $type =~ /^[\)\]\}R]$/ ) {
-                $bond_str = 0.1 * STRONG + 0.9 * NOMINAL;
-            }
-
-            # otherwise make strength before an '->' a little over a '+'
-            else {
-                if ( $bond_str <= NOMINAL ) {
-                    $bond_str = NOMINAL + 0.01;
+            # if leading '.' is used, align all but 'short' quotes;
+            # the idea is to not place something like "\n" on a single line.
+            elsif ( $next_nonblank_type eq '.' ) {
+                if ( $want_break_before{'.'} ) {
+                    unless (
+                        $last_nonblank_type eq '.'
+                        && (
+                            length($token) <=
+                            $rOpts_short_concatenation_item_length )
+                        && ( $token !~ /^[\)\]\}]$/ )
+                      )
+                    {
+                        $dot_bias += $delta_bias;
+                    }
+                    $bond_str += $dot_bias;
                 }
             }
-        }
+            elsif ( $next_nonblank_type eq '&&' ) {
+                $bond_str += $amp_bias;
+                $amp_bias += $delta_bias;
+            }
+            elsif ( $next_nonblank_type eq '||' ) {
+                $bond_str += $bar_bias;
+                $bar_bias += $delta_bias;
+            }
+            elsif ( $next_nonblank_type eq 'k' ) {
 
-        if ( $token eq ')' && $next_nonblank_token eq '[' ) {
-            $bond_str = 0.2 * STRONG + 0.8 * NOMINAL;
-        }
+                if ( $next_nonblank_token eq 'and' ) {
+                    $bond_str += $and_bias;
+                    $and_bias += $delta_bias;
+                }
+                elsif ( $next_nonblank_token eq 'or' ) {
+                    $bond_str += $or_bias;
+                    $or_bias  += $delta_bias;
+                }
 
-        # map1.t -- correct for a quirk in perl
-        if (   $token eq '('
-            && $next_nonblank_type eq 'i'
-            && $last_nonblank_type eq 'k'
-            && $is_sort_map_grep{$last_nonblank_token} )
+                # FIXME: needs more testing
+                elsif ( $is_keyword_returning_list{$next_nonblank_token} ) {
+                    $bond_str = $list_str if ( $bond_str > $list_str );
+                }
+            }
 
-          #     /^(sort|map|grep)$/ )
-        {
-            $bond_str = NO_BREAK;
-        }
-
-        # extrude.t: do not break before paren at:
-        #    -l pid_filename(
-        if ( $last_nonblank_type eq 'F' && $next_nonblank_token eq '(' ) {
-            $bond_str = NO_BREAK;
-        }
-
-        # good to break after end of code blocks
-        if ( $type eq '}' && $block_type ) {
-
-            $bond_str = 0.5 * WEAK + 0.5 * VERY_WEAK + $code_bias;
-            $code_bias += $delta_bias;
-        }
-
-        if ( $type eq 'k' ) {
-
-            # allow certain control keywords to stand out
-            if (   ( $next_nonblank_type eq 'k' )
-                && ( $token =~ /^(last|next|redo|return)$/ ) )
+            # keep matrix and hash indices together
+            # but make them a little below STRONG to allow breaking open
+            # something like {'some-word'}{'some-very-long-word'} at the }{
+            # (bracebrk.t)
+            if (   ( $type eq ']' or $type eq 'R' )
+                && ( $next_nonblank_type eq '[' or $next_nonblank_type eq 'L' )
+              )
             {
-                $bond_str = 0.45 * WEAK + 0.55 * VERY_WEAK;
+                $bond_str = 0.9 * STRONG + 0.1 * NOMINAL;
             }
+
+            if ( $next_nonblank_token =~ /^->/ ) {
+
+                # increase strength to the point where a break in the following
+                # will be after the opening paren rather than at the arrow:
+                #    $a->$b($c);
+                if ( $type eq 'i' ) {
+                    $bond_str = 1.45 * STRONG;
+                }
+
+                elsif ( $type =~ /^[\)\]\}R]$/ ) {
+                    $bond_str = 0.1 * STRONG + 0.9 * NOMINAL;
+                }
+
+                # otherwise make strength before an '->' a little over a '+'
+                else {
+                    if ( $bond_str <= NOMINAL ) {
+                        $bond_str = NOMINAL + 0.01;
+                    }
+                }
+            }
+
+            if ( $token eq ')' && $next_nonblank_token eq '[' ) {
+                $bond_str = 0.2 * STRONG + 0.8 * NOMINAL;
+            }
+
+            # map1.t -- correct for a quirk in perl
+            if (   $token eq '('
+                && $next_nonblank_type eq 'i'
+                && $last_nonblank_type eq 'k'
+                && $is_sort_map_grep{$last_nonblank_token} )
+
+              #     /^(sort|map|grep)$/ )
+            {
+                $bond_str = NO_BREAK;
+            }
+
+            # extrude.t: do not break before paren at:
+            #    -l pid_filename(
+            if ( $last_nonblank_type eq 'F' && $next_nonblank_token eq '(' ) {
+                $bond_str = NO_BREAK;
+            }
+
+            # good to break after end of code blocks
+            if ( $type eq '}' && $block_type ) {
+
+                $bond_str = 0.5 * WEAK + 0.5 * VERY_WEAK + $code_bias;
+                $code_bias += $delta_bias;
+            }
+
+            if ( $type eq 'k' ) {
+
+                # allow certain control keywords to stand out
+                if (   $next_nonblank_type eq 'k'
+                    && $is_last_next_redo_return{$token} )
+                {
+                    $bond_str = 0.45 * WEAK + 0.55 * VERY_WEAK;
+                }
 
 # Don't break after keyword my.  This is a quick fix for a
 # rare problem with perl. An example is this line from file
 # Container.pm:
 # foreach my $question( Debian::DebConf::ConfigDb::gettree( $this->{'question'} ) )
 
-            if ( $token eq 'my' ) {
-                $bond_str = NO_BREAK;
-            }
-
-        }
-
-        # good to break before 'if', 'unless', etc
-        if ( $is_if_brace_follower{$next_nonblank_token} ) {
-            $bond_str = VERY_WEAK;
-        }
-
-        if ( $next_nonblank_type eq 'k' ) {
-
-            # keywords like 'unless' 'if' make good breaks
-            if ( $is_do_follower{$next_nonblank_token} ) {
-                $bond_str = VERY_WEAK / 1.05;
-            }
-
-        }
-
-        # try not to break before a comma-arrow
-        elsif ( $next_nonblank_type eq '=>' ) {
-            if ( $bond_str < STRONG ) { $bond_str = STRONG }
-        }
-
-        #----------------------------------------------------------------------
-        # only set NO_BREAK's from here on
-        #----------------------------------------------------------------------
-        if ( $type eq 'C' or $type eq 'U' ) {
-
-            # use strict requires that bare word and => not be separated
-            if ( $next_nonblank_type eq '=>' ) {
-                $bond_str = NO_BREAK;
-            }
-
-        }
-
-        # use strict requires that bare word within braces not start new line
-        elsif ( $type eq 'L' ) {
-
-            if ( $next_nonblank_type eq 'w' ) {
-                $bond_str = NO_BREAK;
-            }
-        }
-
-        # in older version of perl, use strict can cause problems with
-        # breaks before bare words following opening parens.  For example,
-        # this will fail under older versions if a break is made between
-        # '(' and 'MAIL':
-        #  use strict;
-        #  open( MAIL, "a long filename or command");
-        #  close MAIL;
-        elsif ( $type eq '{' ) {
-
-            if ( $token eq '(' && $next_nonblank_type eq 'w' ) {
-
-                # but it's fine to break if the word is followed by a '=>'
-                # or if it is obviously a sub call
-                my $i_next_next_nonblank = $i_next_nonblank + 1;
-                my $next_next_type       = $types_to_go[$i_next_next_nonblank];
-                if (   $next_next_type eq 'b'
-                    && $i_next_nonblank < $max_index_to_go )
-                {
-                    $i_next_next_nonblank++;
-                    $next_next_type = $types_to_go[$i_next_next_nonblank];
+                if ( $token eq 'my' ) {
+                    $bond_str = NO_BREAK;
                 }
 
-                ##if ( $next_next_type ne '=>' ) {
-                # these are ok: '->xxx', '=>', '('
+            }
 
-                # We'll check for an old breakpoint and keep a leading
-                # bareword if it was that way in the input file.  Presumably
-                # it was ok that way.  For example, the following would remain
-                # unchanged:
-                #
-                # @months = (
-                #   January,   February, March,    April,
-                #   May,       June,     July,     August,
-                #   September, October,  November, December,
-                # );
-                #
-                # This should be sufficient:
-                if ( !$old_breakpoint_to_go[$i]
-                    && ( $next_next_type eq ',' || $next_next_type eq '}' ) )
+            # good to break before 'if', 'unless', etc
+            if ( $is_if_brace_follower{$next_nonblank_token} ) {
+                $bond_str = VERY_WEAK;
+            }
+
+            if ( $next_nonblank_type eq 'k' ) {
+
+                # keywords like 'unless', 'if', etc, within statements
+                # make good breaks
+                if ( $is_good_keyword_breakpoint{$next_nonblank_token} ) {
+                    $bond_str = VERY_WEAK / 1.05;
+                }
+            }
+
+            # try not to break before a comma-arrow
+            elsif ( $next_nonblank_type eq '=>' ) {
+                if ( $bond_str < STRONG ) { $bond_str = STRONG }
+            }
+
+         #----------------------------------------------------------------------
+         # only set NO_BREAK's from here on
+         #----------------------------------------------------------------------
+            if ( $type eq 'C' or $type eq 'U' ) {
+
+                # use strict requires that bare word and => not be separated
+                if ( $next_nonblank_type eq '=>' ) {
+                    $bond_str = NO_BREAK;
+                }
+
+            }
+
+           # use strict requires that bare word within braces not start new line
+            elsif ( $type eq 'L' ) {
+
+                if ( $next_nonblank_type eq 'w' ) {
+                    $bond_str = NO_BREAK;
+                }
+            }
+
+            # in older version of perl, use strict can cause problems with
+            # breaks before bare words following opening parens.  For example,
+            # this will fail under older versions if a break is made between
+            # '(' and 'MAIL':
+            #  use strict;
+            #  open( MAIL, "a long filename or command");
+            #  close MAIL;
+            elsif ( $type eq '{' ) {
+
+                if ( $token eq '(' && $next_nonblank_type eq 'w' ) {
+
+                    # but it's fine to break if the word is followed by a '=>'
+                    # or if it is obviously a sub call
+                    my $i_next_next_nonblank = $i_next_nonblank + 1;
+                    my $next_next_type = $types_to_go[$i_next_next_nonblank];
+                    if (   $next_next_type eq 'b'
+                        && $i_next_nonblank < $max_index_to_go )
+                    {
+                        $i_next_next_nonblank++;
+                        $next_next_type = $types_to_go[$i_next_next_nonblank];
+                    }
+
+                    ##if ( $next_next_type ne '=>' ) {
+                    # these are ok: '->xxx', '=>', '('
+
+                  # We'll check for an old breakpoint and keep a leading
+                  # bareword if it was that way in the input file.  Presumably
+                  # it was ok that way.  For example, the following would remain
+                  # unchanged:
+                  #
+                  # @months = (
+                  #   January,   February, March,    April,
+                  #   May,       June,     July,     August,
+                  #   September, October,  November, December,
+                  # );
+                  #
+                  # This should be sufficient:
+                    if ( !$old_breakpoint_to_go[$i]
+                        && ( $next_next_type eq ',' || $next_next_type eq '}' )
+                      )
+                    {
+                        $bond_str = NO_BREAK;
+                    }
+                }
+            }
+
+            elsif ( $type eq 'w' ) {
+
+                if ( $next_nonblank_type eq 'R' ) {
+                    $bond_str = NO_BREAK;
+                }
+
+                # use strict requires that bare word and => not be separated
+                if ( $next_nonblank_type eq '=>' ) {
+                    $bond_str = NO_BREAK;
+                }
+            }
+
+          # in fact, use strict hates bare words on any new line.  For example,
+          # a break before the underscore here provokes the wrath of use strict:
+          #    if ( -r $fn && ( -s _ || $AllowZeroFilesize)) {
+            elsif ( $type eq 'F' ) {
+                $bond_str = NO_BREAK;
+            }
+
+            # use strict does not allow separating type info from trailing { }
+            # testfile is readmail.pl
+            elsif ( $type eq 't' or $type eq 'i' ) {
+
+                if ( $next_nonblank_type eq 'L' ) {
+                    $bond_str = NO_BREAK;
+                }
+            }
+
+        # Do not break between a possible filehandle and a ? or /
+        # and do not introduce a break after it if there is no blank (extrude.t)
+            elsif ( $type eq 'Z' ) {
+
+                # dont break..
+                if (
+
+                    # if there is no blank and we do not want one. Examples:
+                    #    print $x++    # do not break after $x
+                    #    print HTML"HELLO"   # break ok after HTML
+                    (
+                           $next_type ne 'b'
+                        && defined( $want_left_space{$next_type} )
+                        && $want_left_space{$next_type} == WS_NO
+                    )
+
+                    # or we might be followed by the start of a quote
+                    || $next_nonblank_type =~ /^[\/\?]$/
+                  )
                 {
                     $bond_str = NO_BREAK;
                 }
             }
-        }
 
-        elsif ( $type eq 'w' ) {
-
-            if ( $next_nonblank_type eq 'R' ) {
+            # Do not break before a possible file handle
+            if ( $next_nonblank_type eq 'Z' ) {
                 $bond_str = NO_BREAK;
             }
 
-            # use strict requires that bare word and => not be separated
-            if ( $next_nonblank_type eq '=>' ) {
+            # As a defensive measure, do not break between a '(' and a
+            # filehandle.  In some cases, this can cause an error.  For
+            # example, the following program works:
+            #    my $msg="hi!\n";
+            #    print
+            #    ( STDOUT
+            #    $msg
+            #    );
+            #
+            # But this program fails:
+            #    my $msg="hi!\n";
+            #    print
+            #    (
+            #    STDOUT
+            #    $msg
+            #    );
+            #
+            # This is normally only a problem with the 'extrude' option
+            if ( $next_nonblank_type eq 'Y' && $token eq '(' ) {
                 $bond_str = NO_BREAK;
             }
-        }
 
-        # in fact, use strict hates bare words on any new line.  For example,
-        # a break before the underscore here provokes the wrath of use strict:
-        #    if ( -r $fn && ( -s _ || $AllowZeroFilesize)) {
-        elsif ( $type eq 'F' ) {
-            $bond_str = NO_BREAK;
-        }
+            # patch to put cuddled elses back together when on multiple
+            # lines, as in: } \n else \n { \n
+            if ($rOpts_cuddled_else) {
 
-        # use strict does not allow separating type info from trailing { }
-        # testfile is readmail.pl
-        elsif ( $type eq 't' or $type eq 'i' ) {
+                if (   ( $token eq 'else' ) && ( $next_nonblank_type eq '{' )
+                    || ( $type eq '}' ) && ( $next_nonblank_token eq 'else' ) )
+                {
+                    $bond_str = NO_BREAK;
+                }
+            }
 
-            if ( $next_nonblank_type eq 'L' ) {
+            # keep '}' together with ';'
+            if ( ( $token eq '}' ) && ( $next_nonblank_type eq ';' ) ) {
                 $bond_str = NO_BREAK;
             }
-        }
 
-        # Do not break between a possible filehandle and a ? or /
-        # and do not introduce a break after it if there is no blank (extrude.t)
-        elsif ( $type eq 'Z' ) {
-
-            # dont break..
-            if (
-
-                # if there is no blank and we do not want one. Examples:
-                #    print $x++    # do not break after $x
-                #    print HTML"HELLO"   # break ok after HTML
-                (
-                       $next_type ne 'b'
-                    && defined( $want_left_space{$next_type} )
-                    && $want_left_space{$next_type} == WS_NO
-                )
-
-                # or we might be followed by the start of a quote
-                || $next_nonblank_type =~ /^[\/\?]$/
-              )
-            {
+            # never break between sub name and opening paren
+            if ( ( $type eq 'w' ) && ( $next_nonblank_token eq '(' ) ) {
                 $bond_str = NO_BREAK;
             }
-        }
 
-        # Do not break before a possible file handle
-        #if ( ( $type eq 'Z' ) || ( $next_nonblank_type eq 'Z' ) ) {
-        if ( $next_nonblank_type eq 'Z' ) {
-            $bond_str = NO_BREAK;
-        }
+            #---------------------------------------------------------------
+            # section 3:
+            # now take nesting depth into account
+            #---------------------------------------------------------------
+            # final strength incorporates the bond strength and nesting depth
+            my $strength;
 
-        # patch to put cuddled elses back together when on multiple
-        # lines, as in: } \n else \n { \n
-        if ($rOpts_cuddled_else) {
-
-            if (   ( $token eq 'else' ) && ( $next_nonblank_type eq '{' )
-                || ( $type eq '}' ) && ( $next_nonblank_token eq 'else' ) )
-            {
-                $bond_str = NO_BREAK;
-            }
-        }
-
-        # keep '}' together with ';'
-        if ( ( $token eq '}' ) && ( $next_nonblank_type eq ';' ) ) {
-            $bond_str = NO_BREAK;
-        }
-
-        # never break between sub name and opening paren
-        if ( ( $type eq 'w' ) && ( $next_nonblank_token eq '(' ) ) {
-            $bond_str = NO_BREAK;
-        }
-
-        #---------------------------------------------------------------
-        # section 3:
-        # now take nesting depth into account
-        #---------------------------------------------------------------
-        # final strength incorporates the bond strength and nesting depth
-        my $strength;
-
-        if ( defined($bond_str) && !$nobreak_to_go[$i] ) {
-            if ( $total_nesting_depth > 0 ) {
-                $strength = $bond_str + $total_nesting_depth;
+            if ( defined($bond_str) && !$nobreak_to_go[$i] ) {
+                if ( $total_nesting_depth > 0 ) {
+                    $strength = $bond_str + $total_nesting_depth;
+                }
+                else {
+                    $strength = $bond_str;
+                }
             }
             else {
-                $strength = $bond_str;
+                $strength = NO_BREAK;
             }
-        }
-        else {
-            $strength = NO_BREAK;
-        }
 
-        # always break after side comment
-        if ( $type eq '#' ) { $strength = 0 }
+            # always break after side comment
+            if ( $type eq '#' ) { $strength = 0 }
 
-        $bond_strength_to_go[$i] = $strength;
+            $bond_strength_to_go[$i] = $strength;
 
-        FORMATTER_DEBUG_FLAG_BOND && do {
-            my $str = substr( $token, 0, 15 );
-            $str .= ' ' x ( 16 - length($str) );
-            print
+            FORMATTER_DEBUG_FLAG_BOND && do {
+                my $str = substr( $token, 0, 15 );
+                $str .= ' ' x ( 16 - length($str) );
+                print
 "BOND:  i=$i $str $type $next_nonblank_type depth=$total_nesting_depth strength=$bond_str_1 -> $bond_str -> $strength \n";
-        };
+            };
+        }
     }
+
 }
 
 sub pad_array_to_go {
@@ -11588,8 +11864,6 @@ sub pad_array_to_go {
         # never break a container of one of these types
         # because bad things can happen (map1.t)
         my $dd = shift;
-
-        #/^(sort|map|grep)$/
         $is_sort_map_grep{ $container_type[$dd] };
     }
 
@@ -11769,7 +12043,7 @@ sub pad_array_to_go {
                     }
                 }
             }
-            elsif ( $type eq '=' ) {
+            elsif ( $is_assignment{$type} ) {
                 $i_equals[$depth] = $i;
             }
 
@@ -11777,7 +12051,7 @@ sub pad_array_to_go {
 
                 # handle any postponed closing breakpoints
                 if ( $token =~ /^[\)\]\}\:]$/ ) {
-                    if ( $token eq ':' ) {
+                    if ( $type eq ':' ) {
                         $last_colon_sequence_number = $type_sequence;
 
                         # TESTING: retain break at a ':' line break
@@ -11796,7 +12070,7 @@ sub pad_array_to_go {
                         }
                     }
                     if ( defined( $postponed_breakpoint{$type_sequence} ) ) {
-                        my $inc = ( $token eq ':' ) ? 0 : 1;
+                        my $inc = ( $type eq ':' ) ? 0 : 1;
                         set_forced_breakpoint( $i - $inc );
                         delete $postponed_breakpoint{$type_sequence};
                     }
@@ -12237,7 +12511,7 @@ sub pad_array_to_go {
 
                     # break before an '=' following closing structure
                     if (
-                        $next_nonblank_type eq '='
+                        $is_assignment{$next_nonblank_type}
                         && ( $breakpoint_stack[$current_depth] !=
                             $forced_breakpoint_count )
                       )
@@ -12301,7 +12575,7 @@ sub pad_array_to_go {
             # not a list.  Note that '=' could be in any of the = operators
             # (lextest.t). We can't just use the reported environment
             # because it can be incorrect in some cases.
-            elsif ($type =~ /(^[\;\<\>\~]$)|[=]/
+            elsif ( ( $type =~ /^[\;\<\>\~]$/ || $is_assignment{$type} )
                 && $container_environment_to_go[$i] ne 'LIST' )
             {
                 $dont_align[$depth]         = 1;
@@ -12703,7 +12977,7 @@ sub find_token_starting_list {
         my $odd_or_even = 2;    # 1 = odd field count ok, 2 = want even count
 
         if (   $identifier_count >= $item_count - 1
-            || $next_nonblank_type eq '='
+            || $is_assignment{$next_nonblank_type}
             || ( $list_type && $list_type ne '=>' && $list_type !~ /^[\:\?]$/ )
           )
         {
@@ -12993,7 +13267,7 @@ sub find_token_starting_list {
         # align; high sparsity does not look good, especially with few lines
         my $sparsity = ($unused_columns) / ($formatted_columns);
         my $max_allowed_sparsity =
-          ( $item_count < 3 ) ? 0.1
+            ( $item_count < 3 ) ? 0.1
           : ( $packed_lines == 1 ) ? 0.15
           : ( $packed_lines == 2 ) ? 0.4
           : 0.7;
@@ -13563,13 +13837,10 @@ sub undo_forced_breakpoint_stack {
 }
 
 {    # begin recombine_breakpoints
-    my %is_last_next_redo_return;
     my %is_if_unless;
     my %is_and_or;
 
     BEGIN {
-        @_ = qw(last next redo return);
-        @is_last_next_redo_return{@_} = (1) x scalar(@_);
 
         @_ = qw(if unless);
         @is_if_unless{@_} = (1) x scalar(@_);
@@ -13696,15 +13967,16 @@ sub undo_forced_breakpoint_stack {
                 }
 
                 # if '=' at end of line ...
-                elsif ( $types_to_go[$imid] eq '=' ) {
+                elsif ( $is_assignment{ $types_to_go[$imid] } ) {
 
-                    # always ok to join isolated '='
+                    # otherwise always ok to join isolated '='
                     unless ( $if == $imid ) {
 
                         my $is_math = (
                             ( $types_to_go[$il] =~ /^[+-\/\*\)]$/ )
 
-                   # note no '$' in pattern because -> can start long identifier
+                            # note no '$' in pattern because -> can
+                            # start long identifier
                               && !grep { $_ =~ /^(->|=>|[\,])/ }
                               @types_to_go[ $imidr .. $il ]
                         );
@@ -13770,22 +14042,22 @@ sub undo_forced_breakpoint_stack {
                     my $imm  = $n > 1          ? $$ri_first[ $n - 2 ] : -1;
                     my $seqno = $type_sequence_to_go[$imidr];
                     my $f_ok  =
-                      (      $tokens_to_go[$if] eq ':'
+                      (      $types_to_go[$if] eq ':'
                           && $type_sequence_to_go[$if] ==
                           $seqno - TYPE_SEQUENCE_INCREMENT );
                     my $mm_ok =
                       (      $imm >= 0
-                          && $tokens_to_go[$imm] eq ':'
+                          && $types_to_go[$imm] eq ':'
                           && $type_sequence_to_go[$imm] ==
                           $seqno - 2 * TYPE_SEQUENCE_INCREMENT );
 
                     my $ff_ok =
                       (      $iff > 0
-                          && $tokens_to_go[$iff] eq ':'
+                          && $types_to_go[$iff] eq ':'
                           && $type_sequence_to_go[$iff] == $seqno );
                     my $fff_ok =
                       (      $ifff > 0
-                          && $tokens_to_go[$ifff] eq ':'
+                          && $types_to_go[$ifff] eq ':'
                           && $type_sequence_to_go[$ifff] ==
                           $seqno + TYPE_SEQUENCE_INCREMENT );
 
@@ -13906,7 +14178,7 @@ sub undo_forced_breakpoint_stack {
                         # keywords look best at start of lines,
                         # but combine things like "1 while"
 
-                        unless ( $types_to_go[$imid] eq '=' ) {
+                        unless ( $is_assignment{ $types_to_go[$imid] } ) {
                             next
                               if ( ( $types_to_go[$imid] ne 'k' )
                                 && ( $tokens_to_go[$imidr] !~ /^(while)$/ ) );
@@ -14012,7 +14284,7 @@ sub set_continuation_breaks {
     my @i_first        = ();      # the first index to output
     my @i_last         = ();      # the last index to output
     my @i_colon_breaks = ();      # needed to decide if we have to break at ?'s
-    if ( $tokens_to_go[0] eq ':' ) { push @i_colon_breaks, 0 }
+    if ( $types_to_go[0] eq ':' ) { push @i_colon_breaks, 0 }
 
     set_bond_strengths();
 
@@ -14330,9 +14602,9 @@ sub set_continuation_breaks {
         $line_count++;
 
         # save this line segment, after trimming blanks at the ends
-        push ( @i_first,
+        push( @i_first,
             ( $types_to_go[$i_begin] eq 'b' ) ? $i_begin + 1 : $i_begin );
-        push ( @i_last,
+        push( @i_last,
             ( $types_to_go[$i_lowest] eq 'b' ) ? $i_lowest - 1 : $i_lowest );
 
         # set a forced breakpoint at a container opening, if necessary, to
@@ -15076,6 +15348,7 @@ use vars qw(
   $group_maximum_gap
   $marginal_match
   $last_group_level_written
+  $last_leading_space_count
   $extra_indent_ok
   $zero_count
   @group_lines
@@ -15175,6 +15448,7 @@ sub initialize_for_new_group {
     $group_type              = "";
     $marginal_match          = 0;
     $comment_leading_space_count = 0;
+    $last_leading_space_count    = 0;
 }
 
 # interface to Perl::Tidy::Diagnostics routines
@@ -15337,13 +15611,23 @@ sub append_line {
       )
       = @_;
 
-    my $leading_space_count = get_SPACES($indentation);
-
     # number of fields is $jmax
     # number of tokens between fields is $jmax-1
     my $jmax = $#{$rfields};
     $previous_minimum_jmax_seen = $minimum_jmax_seen;
     $previous_maximum_jmax_seen = $maximum_jmax_seen;
+
+    my $leading_space_count = get_SPACES($indentation);
+
+    # set outdented flag to be sure we either align within statements or
+    # across statement boundaries, but not both.
+    my $is_outdented = $last_leading_space_count > $leading_space_count;
+    $last_leading_space_count = $leading_space_count;
+
+    # Patch: undo for hanging side comment
+    my $is_hanging_side_comment =
+      ( $jmax == 1 && $rtokens->[0] eq '#' && $rfields->[0] =~ /^\s*$/ );
+    $is_outdented = 0 if $is_hanging_side_comment;
 
     VALIGN_DEBUG_FLAG_APPEND0 && do {
         print
@@ -15381,7 +15665,7 @@ sub append_line {
     if ( $level < 0 ) { $level = 0 }
 
     # do not align code across indentation level changes
-    if ( $level != $group_level ) {
+    if ( $level != $group_level || $is_outdented ) {
 
         # we are allowed to shift a group of lines to the right if its
         # level is greater than the previous and next group
@@ -15492,8 +15776,7 @@ sub append_line {
     # --------------------------------------------------------------------
     # create an object to hold this line
     # --------------------------------------------------------------------
-    my $is_hanging_side_comment = 0;
-    my $new_line                = new Perl::Tidy::VerticalAligner::Line(
+    my $new_line = new Perl::Tidy::VerticalAligner::Line(
         jmax                      => $jmax,
         jmax_original_line        => $jmax,
         rtokens                   => $rtokens,
@@ -15530,8 +15813,8 @@ sub append_line {
         # This will help keep side comments aligned, because otherwise we
         # will have to start a new group, making alignment less likely.
         # --------------------------------------------------------------------
-        $is_hanging_side_comment =
-          hanging_comment_check( $new_line, $current_line );
+        join_hanging_comment( $new_line, $current_line )
+          if $is_hanging_side_comment;
 
         # --------------------------------------------------------------------
         # If there is just one previous line, and it has more fields
@@ -15591,7 +15874,7 @@ sub append_line {
     };
 }
 
-sub hanging_comment_check {
+sub join_hanging_comment {
 
     my $line = shift;
     my $jmax = $line->get_jmax();
@@ -15683,7 +15966,7 @@ sub eliminate_old_fields {
     # loop over all old tokens
     my $in_match = 0;
     for ( $k = 0 ; $k < $maximum_field_index ; $k++ ) {
-        $current_field .= $$old_rfields[$k];
+        $current_field   .= $$old_rfields[$k];
         $current_pattern .= $$old_rpatterns[$k];
         last if ( $j > $jmax - 1 );
 
@@ -15717,7 +16000,7 @@ sub eliminate_old_fields {
         && ( $case != 1 || $hid_equals ) )
     {
         $k = $maximum_field_index;
-        $current_field .= $$old_rfields[$k];
+        $current_field   .= $$old_rfields[$k];
         $current_pattern .= $$old_rpatterns[$k];
         $new_fields[$j]            = $current_field;
         $new_matching_patterns[$j] = $current_pattern;
@@ -16068,7 +16351,16 @@ sub check_fit {
     save_alignment_columns();
 
     my ( $j, $pad, $eight );
+    my $maximum_field_index = $old_line->get_jmax();
     for $j ( 0 .. $jmax ) {
+
+        ## testing patch to avoid excessive gaps in previous lines,
+        # due to a line of fewer fields.
+        #   return join( ".",
+        #       $self->{"dfi"},  $self->{"aa"}, $self->rsvd,     $self->{"rd"},
+        #       $self->{"area"}, $self->{"id"}, $self->{"sel"} );
+        ## MOVED BELOW AS A TEST
+        ##next if ($jmax < $maximum_field_index && $j==$jmax-1);
 
         $pad = length( $$rfields[$j] ) - $old_line->current_field_width($j);
 
@@ -16104,6 +16396,9 @@ sub check_fit {
             my_flush();
             last;
         }
+
+        # TESTING PATCH moved from above to be sure we fit
+        next if ( $jmax < $maximum_field_index && $j == $jmax - 1 );
 
         # looks ok, squeeze this field in
         $old_line->increase_field_width( $j, $pad );
@@ -16182,17 +16477,15 @@ sub my_flush {
 
     return if ( $maximum_line_index < 0 );
 
-    VALIGN_DEBUG_FLAG_APPEND0 && do {
-        my $group_list_type = $group_lines[0]->get_list_type();
-        my ( $a, $b, $c ) = caller();
-        my $maximum_field_index = $group_lines[0]->get_jmax();
-        print
-"APPEND0: Flush called from $a $b $c fields=$maximum_field_index list=$group_list_type lines=$maximum_line_index extra=$extra_indent_ok\n";
-
-    };
-
     # handle a group of comment lines
     if ( $group_type eq 'COMMENT' ) {
+
+        VALIGN_DEBUG_FLAG_APPEND0 && do {
+            my ( $a, $b, $c ) = caller();
+            print
+"APPEND0: Flush called from $a $b $c for COMMENT group: lines=$maximum_line_index \n";
+
+        };
         my $leading_space_count = $comment_leading_space_count;
         my $leading_string      = get_leading_string($leading_space_count);
 
@@ -16228,6 +16521,15 @@ sub my_flush {
 
     # handle a group of code lines
     else {
+
+        VALIGN_DEBUG_FLAG_APPEND0 && do {
+            my $group_list_type = $group_lines[0]->get_list_type();
+            my ( $a, $b, $c ) = caller();
+            my $maximum_field_index = $group_lines[0]->get_jmax();
+            print
+"APPEND0: Flush called from $a $b $c fields=$maximum_field_index list=$group_list_type lines=$maximum_line_index extra=$extra_indent_ok\n";
+
+        };
 
         # some small groups are best left unaligned
         my $do_not_align = decide_if_aligned();
@@ -16422,7 +16724,7 @@ sub improve_continuation_indentation {
     #          'tan'   => \&tan,
     #          'atan2' => \&atan2,
 
-    ## BUBBA: Deactivated####################
+    ## BUB: Deactivated####################
     # The trouble with this patch is that it may, for example,
     # move in some 'or's  or ':'s, and leave some out, so that the
     # left edge alignment suffers.
@@ -17088,7 +17390,7 @@ sub write_debug_entry {
             $pattern .= $$rtoken_type[$j];
         }
         $reconstructed_original .= $$rtokens[$j];
-        $block_str .= "($$rblock_type[$j])";
+        $block_str              .= "($$rblock_type[$j])";
         $num = length( $$rtokens[$j] );
         my $type_str = $$rtoken_type[$j];
 
@@ -17151,7 +17453,7 @@ sub peek_ahead {
     }
     else {
         $line = $line_source_object->get_line();
-        push ( @$rlookahead_buffer, $line );
+        push( @$rlookahead_buffer, $line );
     }
     return $line;
 }
@@ -17308,6 +17610,7 @@ use vars qw{
   @opening_brace_names
   @closing_brace_names
   %is_keyword_taking_list
+  %is_q_qq_qw_qx_qr_s_y_tr_m
 };
 
 # possible values of operator_expected()
@@ -17761,6 +18064,7 @@ sub get_line {
         }
 
         # check for error of extra whitespace
+        # note for PERL6: leading whitespace is allowed
         else {
             $candidate_target =~ s/\s*$//;
             $candidate_target =~ s/^\s*//;
@@ -18254,7 +18558,7 @@ sub dump_token_types {
     # adding NEW_TOKENS: add a comment here
     print $fh <<'END_OF_LIST';
 
-Here is a list of the token types currently used.  
+Here is a list of the token types currently used for lines of type 'CODE'.  
 For the following tokens, the "type" of a token is just the token itself.  
 
 .. :: << >> ** && .. ||  -> => += -= .= %= &= |= ^= *= <>
@@ -18289,7 +18593,7 @@ The following additional token types are defined:
     P    (unused, but -html uses it to label pod text)
     t    type indicater such as %,$,@,*,&,sub
     w    bare word (perhaps a subroutine call)
-    i    identifier of some type (with leading %, $, @, *, &, sub )
+    i    identifier of some type (with leading %, $, @, *, &, sub, -> )
     n    a number
     v    a v-string
     F    a file test operator (like -e)
@@ -18302,6 +18606,22 @@ The following additional token types are defined:
     pp   pre-increment operator ++
     mm   pre-decrement operator -- 
     A    : used as attribute separator
+    
+    Here are the '_line_type' codes used internally:
+    SYSTEM         - system-specific code before hash-bang line
+    CODE           - line of perl code (including comments)
+    POD_START      - line starting pod, such as '=head'
+    POD            - pod documentation text
+    POD_END        - last line of pod section, '=cut'
+    HERE           - text of here-document
+    HERE_END       - last line of here-doc (target word)
+    FORMAT         - format section
+    FORMAT_END     - last line of format section, '.'
+    DATA_START     - __DATA__ line
+    DATA           - unidentified text following __DATA__
+    END_START      - __END__ line
+    END            - unidentified text following __END__
+    ERROR          - we are in big trouble, probably not a perl script
 END_OF_LIST
 }
 
@@ -18431,7 +18751,13 @@ sub reset_indentation_level {
         $type,            $type_sequence,
     );
 
-    my @here_target_list = ();    # list of here-doc target strings
+    my @output_token_list     = ();    # stack of output token indexes
+    my @output_token_type     = ();    # token types
+    my @output_block_type     = ();    # types of code block
+    my @output_container_type = ();    # paren types, such as if, elsif, ..
+    my @output_type_sequence  = ();    # nesting sequential number
+
+    my @here_target_list = ();         # list of here-doc target strings
 
     # ------------------------------------------------------------
     # beginning of various scanner interfaces to simplify coding
@@ -18590,10 +18916,11 @@ sub reset_indentation_level {
                     $expecting == OPERATOR
 
                     # be sure this is not a method call of the form
-                    # &method(...), $method->(..), &{method}(...)
+                    # &method(...), $method->(..), &{method}(...),
+                    # $ref[2](list) is ok & short for $ref[2]->(list)
                     # NOTE: at present, braces in something like &{ xxx }
                     # are not marked as a block, we might have a method call
-                    && $last_nonblank_token !~ /^([\}\&]|\-\>)/
+                    && $last_nonblank_token !~ /^([\]\}\&]|\-\>)/
 
                   )
                 {
@@ -18830,7 +19157,7 @@ sub reset_indentation_level {
 
                 # check for syntax error here;
                 unless ( $is_blocktype_with_paren{$last_nonblank_token} ) {
-                    my $list = join ( ' ', sort keys %is_blocktype_with_paren );
+                    my $list = join( ' ', sort keys %is_blocktype_with_paren );
                     warning(
                         "syntax error at ') {', didn't see one of: $list\n");
                 }
@@ -18878,7 +19205,17 @@ sub reset_indentation_level {
             # which will be blank for an anonymous hash
             else {
 
-                $block_type = code_block_type( $i_tok, $rtokens );
+                $block_type = code_block_type( $i_tok, $rtokens, $rtoken_type );
+
+                # patch to promote bareword type to function taking block
+                if (   $block_type
+                    && $last_nonblank_type eq 'w'
+                    && $last_nonblank_i >= 0 )
+                {
+                    if ( $output_token_type[$last_nonblank_i] eq 'w' ) {
+                        $output_token_type[$last_nonblank_i] = 'G';
+                    }
+                }
 
                 # patch for SWITCH/CASE: if we find a stray opening block brace
                 # where we might accept a 'case' or 'when' block, then take it
@@ -19194,6 +19531,11 @@ sub reset_indentation_level {
         # type = 'pp' for pre-increment, '++' for post-increment
         '++' => sub {
             if ( $expecting == TERM ) { $type = 'pp' }
+            elsif ( $expecting == UNKNOWN ) {
+                my ( $next_nonblank_token, $i_next ) =
+                  find_next_nonblank_token( $i, $rtokens );
+                if ( $next_nonblank_token eq '$' ) { $type = 'pp' }
+            }
         },
 
         '=>' => sub {
@@ -19206,6 +19548,11 @@ sub reset_indentation_level {
         '--' => sub {
 
             if ( $expecting == TERM ) { $type = 'mm' }
+            elsif ( $expecting == UNKNOWN ) {
+                my ( $next_nonblank_token, $i_next ) =
+                  find_next_nonblank_token( $i, $rtokens );
+                if ( $next_nonblank_token eq '$' ) { $type = 'mm' }
+            }
         },
 
         '&&' => sub {
@@ -19245,6 +19592,10 @@ sub reset_indentation_level {
     @_ = qw(|| &&);
     @is_binary_type{@_} = (1) x scalar(@_);
 
+    my %is_binary_keyword;
+    @_ = qw(and or eq ne cmp);
+    @is_binary_keyword{@_} = (1) x scalar(@_);
+
     # 'L' is token for opening { at hash key
     my %is_opening_type;
     @_ = qw" L { ( [ ";
@@ -19254,10 +19605,6 @@ sub reset_indentation_level {
     my %is_closing_type;
     @_ = qw" R } ) ] ";
     @is_closing_type{@_} = (1) x scalar(@_);
-
-    my %is_q_qq_qw_qx_qr_s_y_tr_m;
-    @_ = qw(q qq qw qx qr s y tr m);
-    @is_q_qq_qw_qx_qr_s_y_tr_m{@_} = (1) x scalar(@_);
 
     my %is_redo_last_next_goto;
     @_ = qw(redo last next goto);
@@ -19432,12 +19779,12 @@ sub reset_indentation_level {
             $input_line =~ s/^\s*//;    # trim left end
         }
 
-        # initialize for the main loop
-        my @output_token_list     = ();    # stack of output token indexes
-        my @output_token_type     = ();    # token types
-        my @output_block_type     = ();    # types of code block
-        my @output_container_type = ();    # paren types, such as if, elsif, ..
-        my @output_type_sequence  = ();    # nesting sequential number
+        # re-initialize for the main loop
+        @output_token_list     = ();    # stack of output token indexes
+        @output_token_type     = ();    # token types
+        @output_block_type     = ();    # types of code block
+        @output_container_type = ();    # paren types, such as if, elsif, ..
+        @output_type_sequence  = ();    # nesting sequential number
 
         $tok             = $last_nonblank_token;
         $type            = $last_nonblank_type;
@@ -19446,7 +19793,7 @@ sub reset_indentation_level {
         $block_type      = $last_nonblank_block_type;
         $container_type  = $last_nonblank_container_type;
         $type_sequence   = $last_nonblank_type_sequence;
-        @here_target_list = ();            # list of here-doc target strings
+        @here_target_list = ();         # list of here-doc target strings
 
         $peeked_ahead = 0;
 
@@ -19464,10 +19811,9 @@ sub reset_indentation_level {
           pre_tokenize( $input_line, $max_tokens_wanted );
 
         $max_token_index = scalar(@$rpretokens) - 1;
-        push ( @$rpretokens, ' ', ' ', ' ' )
-          ;                           # extra whitespace simplifies logic
-        push ( @$rpretoken_map,  0,   0,   0 );     # shouldn't be referenced
-        push ( @$rpretoken_type, 'b', 'b', 'b' );
+        push( @$rpretokens, ' ', ' ', ' ' ); # extra whitespace simplifies logic
+        push( @$rpretoken_map,  0,   0,   0 );     # shouldn't be referenced
+        push( @$rpretoken_type, 'b', 'b', 'b' );
 
         # temporary copies while coding change is underway
         ( $rtokens, $rtoken_map, $rtoken_type ) =
@@ -19495,7 +19841,7 @@ sub reset_indentation_level {
                 $type = $quote_type;
 
                 unless (@output_token_list) {  # initialize if continuation line
-                    push ( @output_token_list, $i );
+                    push( @output_token_list, $i );
                     $output_token_type[$i] = $type;
 
                 }
@@ -19619,7 +19965,7 @@ EOM
             $i_tok     = $i;
 
             # this pre-token will start an output token
-            push ( @output_token_list, $i_tok );
+            push( @output_token_list, $i_tok );
 
             # continue gathering identifier if necessary
             # but do not start on blanks and comments
@@ -19873,9 +20219,12 @@ EOM
                 }
 
                 # check for a statement label
-                elsif (( $next_nonblank_token eq ':' )
+                elsif (
+                       ( $next_nonblank_token eq ':' )
                     && ( $$rtokens[ $i_next + 1 ] ne ':' )
-                    && label_ok() )
+                    && ( $i_next <= $max_token_index )    # colon on same line
+                    && label_ok()
+                  )
                 {
                     if ( $tok !~ /A-Z/ ) {
                         push @lower_case_labels_at, $input_line_number;
@@ -19955,11 +20304,12 @@ EOM
                     elsif ( $tok eq 'continue' ) {
                         if (   $last_nonblank_token ne ';'
                             && $last_nonblank_block_type !~
-                            /^(\{|\}|;|while|until|for|foreach)$/ )
+                            /(^(\{|\}|;|while|until|for|foreach)|:$)/ )
                         {
 
                             # note: ';' '{' and '}' in list above
-                            # because continues can follow bare blocks
+                            # because continues can follow bare blocks;
+                            # ':' is labeled block
                             warning("'$tok' should follow a block\n");
                         }
                     }
@@ -19985,8 +20335,31 @@ EOM
 
                     scan_bare_identifier();
                     if ( $type eq 'w' ) {
-                        error_if_expecting_OPERATOR("bareword")
-                          if ( $expecting == OPERATOR );
+
+                        if ( $expecting == OPERATOR ) {
+
+                            # don't complain about possible indirect object
+                            # notation.
+                            # For example:
+                            #   package main;
+                            #   sub new($) { ... }
+                            #   $b = new A::;  # calls A::new
+                            #   $c = new A;    # same thing but suspicious
+                            # This will call A::new but we have a 'new' in
+                            # main:: which looks like a constant.
+                            #
+                            if ( $last_nonblank_type eq 'C' ) {
+                                if ( $tok !~ /::$/ ) {
+                                    complain(<<EOM);
+Expecting operator after '$last_nonblank_token' but found bare word '$tok'
+       Maybe indirectet object notation?
+EOM
+                                }
+                            }
+                            else {
+                                error_if_expecting_OPERATOR("bareword");
+                            }
+                        }
 
                         # mark bare words immediately followed by a paren as
                         # functions
@@ -20230,8 +20603,8 @@ EOM
 
                 # use environment before updating
                 $container_environment =
-                  $nesting_block_flag  ? 'BLOCK'
-                  : $nesting_list_flag ? 'LIST'
+                    $nesting_block_flag ? 'BLOCK'
+                  : $nesting_list_flag  ? 'LIST'
                   : "";
 
                 # if the difference between total nesting levels is not 1,
@@ -20290,7 +20663,7 @@ EOM
      # variable.
 
                 # save the current states
-                push ( @slevel_stack, 1 + $slevel_in_tokenizer );
+                push( @slevel_stack, 1 + $slevel_in_tokenizer );
                 $level_in_tokenizer++;
 
                 if ( $output_block_type[$i] ) {
@@ -20363,7 +20736,7 @@ EOM
             elsif ( $type eq '}' || $type eq 'R' ) {
 
                 # only a nesting error in the script would prevent popping here
-                if ( @slevel_stack > 1 ) { pop (@slevel_stack); }
+                if ( @slevel_stack > 1 ) { pop(@slevel_stack); }
 
                 $level_i = --$level_in_tokenizer;
 
@@ -20444,8 +20817,8 @@ EOM
 
                 # use environment after updating
                 $container_environment =
-                  $nesting_block_flag  ? 'BLOCK'
-                  : $nesting_list_flag ? 'LIST'
+                    $nesting_block_flag ? 'BLOCK'
+                  : $nesting_list_flag  ? 'LIST'
                   : "";
                 $ci_string_i = $ci_string_sum + $in_statement_continuation;
                 $nesting_block_string_i = $nesting_block_string;
@@ -20456,8 +20829,8 @@ EOM
             else {
 
                 $container_environment =
-                  $nesting_block_flag  ? 'BLOCK'
-                  : $nesting_list_flag ? 'LIST'
+                    $nesting_block_flag ? 'BLOCK'
+                  : $nesting_list_flag  ? 'LIST'
                   : "";
 
                 # zero the continuation indentation at certain tokens so
@@ -20471,7 +20844,12 @@ EOM
                 }
 
                 # be sure binary operators get continuation indentation
-                if ( $is_binary_type{$type} && $container_environment ) {
+                if (
+                    $container_environment
+                    && (   $type eq 'k' && $is_binary_keyword{$tok}
+                        || $is_binary_type{$type} )
+                  )
+                {
                     $in_statement_continuation = 1;
                 }
 
@@ -20536,7 +20914,7 @@ EOM
             if ( $is_opening_type{$type} ) {
                 $slevel_in_tokenizer++;
                 $nesting_token_string .= $tok;
-                $nesting_type_string .= $type;
+                $nesting_type_string  .= $type;
             }
 
             #       /^[R\}\)\]]$/
@@ -20546,25 +20924,25 @@ EOM
 
                 if ( $char ne $matching_start_token{$tok} ) {
                     $nesting_token_string .= $char . $tok;
-                    $nesting_type_string .= $type;
+                    $nesting_type_string  .= $type;
                 }
                 else {
                     chop $nesting_type_string;
                 }
             }
 
-            push ( @block_type,            $output_block_type[$i] );
-            push ( @ci_string,             $ci_string_i );
-            push ( @container_environment, $container_environment );
-            push ( @container_type,        $output_container_type[$i] );
-            push ( @levels,                $level_i );
-            push ( @nesting_tokens,        $nesting_token_string_i );
-            push ( @nesting_types,         $nesting_type_string_i );
-            push ( @slevels,               $slevel_i );
-            push ( @token_type,            $fix_type );
-            push ( @type_sequence,         $output_type_sequence[$i] );
-            push ( @nesting_blocks,        $nesting_block_string );
-            push ( @nesting_lists,         $nesting_list_string );
+            push( @block_type,            $output_block_type[$i] );
+            push( @ci_string,             $ci_string_i );
+            push( @container_environment, $container_environment );
+            push( @container_type,        $output_container_type[$i] );
+            push( @levels,                $level_i );
+            push( @nesting_tokens,        $nesting_token_string_i );
+            push( @nesting_types,         $nesting_type_string_i );
+            push( @slevels,               $slevel_i );
+            push( @token_type,            $fix_type );
+            push( @type_sequence,         $output_type_sequence[$i] );
+            push( @nesting_blocks,        $nesting_block_string );
+            push( @nesting_lists,         $nesting_list_string );
 
             # now form the previous token
             if ( $im >= 0 ) {
@@ -20572,7 +20950,7 @@ EOM
                   $$rtoken_map[$i] - $$rtoken_map[$im];    # how many characters
 
                 if ( $num > 0 ) {
-                    push ( @tokens,
+                    push( @tokens,
                         substr( $input_line, $$rtoken_map[$im], $num ) );
                 }
             }
@@ -20581,7 +20959,7 @@ EOM
 
         $num = length($input_line) - $$rtoken_map[$im];    # make the last token
         if ( $num > 0 ) {
-            push ( @tokens, substr( $input_line, $$rtoken_map[$im], $num ) );
+            push( @tokens, substr( $input_line, $$rtoken_map[$im], $num ) );
         }
 
         $tokenizer_self->{_in_quote}          = $in_quote;
@@ -20647,7 +21025,7 @@ sub code_block_type {
 
 # print "BLOCK_TYPE EXAMINING: type=$last_nonblank_type tok=$last_nonblank_token\n";
 
-    my ( $i, $rtokens ) = @_;
+    my ( $i, $rtokens, $rtoken_type ) = @_;
     if (   $last_nonblank_token eq '{'
         && $last_nonblank_type eq $last_nonblank_token )
     {
@@ -20655,7 +21033,7 @@ sub code_block_type {
         # opening brace where a statement may appear is probably
         # a code block but might be and anonymous hash reference
         if ( $brace_type[$brace_depth] ) {
-            return decide_if_code_block( $i, $rtokens );
+            return decide_if_code_block( $i, $rtokens, $rtoken_type );
         }
 
         # cannot start a code block within an anonymous hash
@@ -20668,7 +21046,7 @@ sub code_block_type {
 
         # an opening brace where a statement may appear is probably
         # a code block but might be and anonymous hash reference
-        return decide_if_code_block( $i, $rtokens );
+        return decide_if_code_block( $i, $rtokens, $rtoken_type );
     }
 
     # handle case of '}{'
@@ -20679,7 +21057,7 @@ sub code_block_type {
         # a } { situation ...
         # could be hash reference after code block..(blktype1.t)
         if ($last_nonblank_block_type) {
-            return decide_if_code_block( $i, $rtokens );
+            return decide_if_code_block( $i, $rtokens, $rtoken_type );
         }
 
         # must be a block if it follows a closing hash reference
@@ -20719,6 +21097,11 @@ sub code_block_type {
         return $last_nonblank_token;
     }
 
+    # check bareword
+    elsif ( $last_nonblank_type eq 'w' ) {
+        return decide_if_code_block( $i, $rtokens, $rtoken_type );
+    }
+
     # anything else must be anonymous hash reference
     else {
         return "";
@@ -20727,7 +21110,7 @@ sub code_block_type {
 
 sub decide_if_code_block {
 
-    my ( $i, $rtokens ) = @_;
+    my ( $i, $rtokens, $rtoken_type ) = @_;
     my ( $next_nonblank_token, $i_next ) =
       find_next_nonblank_token( $i, $rtokens );
 
@@ -20739,13 +21122,91 @@ sub decide_if_code_block {
     # initialize to be code BLOCK
     my $code_block_type = $last_nonblank_token;
 
-    # Check for an empty anonymous hash reference:
+    # Check for the common case of an empty anonymous hash reference:
     # Maybe something like sub { { } }
     if ( $next_nonblank_token eq '}' ) {
         $code_block_type = "";
     }
 
-    # FIXME: coding incomplete
+    else {
+
+        # To guess if this '{' is an anonymous hash reference, look ahead
+        # and test as follows:
+        #
+        # it is a hash reference if next come:
+        #   - a string or digit followed by a comma or =>
+        #   - bareword followed by =>
+        # otherwise it is a code block
+        #
+        # Examples of anonymous hash ref:
+        # {'aa',};
+        # {1,2}
+        #
+        # Examples of code blocks:
+        # {1; print "hello\n", 1;}
+        # {$a,1};
+
+        # We are only going to look ahead one more (nonblank/comment) line.
+        # Strange formatting could cause a bad guess, but that's unlikely.
+        my @pre_types  = @$rtoken_type[ $i + 1 .. $max_token_index ];
+        my @pre_tokens = @$rtokens[ $i + 1 .. $max_token_index ];
+        my ( $rpre_tokens, $rpre_types ) =
+          peek_ahead_for_n_nonblank_pre_tokens(20);    # 20 is arbitrary but
+                                                       # generous, and prevents
+                                                       # wasting lots of
+                                                       # time in mangled files
+        if ( defined($rpre_types) && @$rpre_types ) {
+            push @pre_types,  @$rpre_types;
+            push @pre_tokens, @$rpre_tokens;
+        }
+
+        # put a sentinal token to simplify stopping the search
+        push @pre_types, '}';
+
+        my $jbeg = 0;
+        $jbeg = 1 if $pre_types[0] eq 'b';
+
+        # first look for one of these
+        #  - bareword
+        #  - bareword with leading -
+        #  - digit
+        #  - quoted string
+        my $j = $jbeg;
+        if ( $pre_types[$j] =~ /^[\'\"]/ ) {
+
+            # find the closing quote; don't worry about escapes
+            my $quote_mark = $pre_types[$j];
+            for ( my $k = $j + 1 ; $k < $#pre_types ; $k++ ) {
+                if ( $pre_types[$k] eq $quote_mark ) {
+                    $j = $k + 1;
+                    my $next = $pre_types[$j];
+                    last;
+                }
+            }
+        }
+        elsif ( $pre_types[$j] eq 'd' ) {
+            $j++;
+        }
+        elsif ( $pre_types[$j] eq 'w' ) {
+            unless ( $is_keyword{ $pre_tokens[$j] } ) {
+                $j++;
+            }
+        }
+        elsif ( $pre_types[$j] eq '-' && $pre_types[ ++$j ] eq 'w' ) {
+            $j++;
+        }
+        if ( $j > $jbeg ) {
+
+            $j++ if $pre_types[$j] eq 'b';
+
+            # it's a hash ref if a comma or => follow next
+            if ( $pre_types[$j] eq ','
+                || ( $pre_types[$j] eq '=' && $pre_types[ ++$j ] eq '>' ) )
+            {
+                $code_block_type = "";
+            }
+        }
+    }
 
     return $code_block_type;
 }
@@ -22057,7 +22518,13 @@ sub scan_bare_identifier_do {
     my $pos_beg = $$rtoken_map[$i_beg];
     pos($input_line) = $pos_beg;
 
-    if ( $input_line =~ m/\G\s*((?:\w*(?:'|::)))*(?:->)?(\w+)/gc ) {
+    #  Examples:
+    #   A::B::C
+    #   A::
+    #   ::A
+    #   A'B
+    ##if ( $input_line =~ m/\G\s*((?:\w*(?:'|::)))*(?:->)?(\w+)/gc ) {
+    if ( $input_line =~ m/\G\s*((?:\w*(?:'|::)))*(?:(?:->)?(\w+))?/gc ) {
 
         my $pos  = pos($input_line);
         my $numc = $pos - $pos_beg;
@@ -22067,8 +22534,18 @@ sub scan_bare_identifier_do {
         # ($,%,@,*) including something like abc::def::ghi
         $type = 'w';
 
+        my $sub_name = "";
+        if ( defined($2) ) { $sub_name = $2; }
         if ( defined($1) ) {
             $package = $1;
+
+            # patch: don't allow isolated package name which just ends
+            # in the old style package separator (single quote).  Example:
+            #   use CGI':all';
+            if ( !($sub_name) && substr( $package, -1, 1 ) eq '\'' ) {
+                $pos--;
+            }
+
             $package =~ s/\'/::/g;
             if ( $package =~ /^\:/ ) { $package = 'main' . $package }
             $package =~ s/::$//;
@@ -22080,7 +22557,6 @@ sub scan_bare_identifier_do {
                 $type = 'k';
             }
         }
-        my $sub_name = $2;
 
         # if it is a bareword..
         if ( $type eq 'w' ) {
@@ -22722,7 +23198,23 @@ sub scan_identifier_do {
             elsif ( ( $tok eq '#' ) && ( $identifier eq '$' ) ) {    # $#array
                 $identifier .= $tok;    # keep same state, a $ could follow
             }
-            elsif ( $tok eq '{' ) {     # skip something like ${xxx} or ->{
+            elsif ( $tok eq '{' ) {
+
+                # check for something like ${#} or ${©}
+                if (   $identifier eq '$'
+                    && $i + 2 <= $max_token_index
+                    && $$rtokens[ $i + 2 ] eq '}'
+                    && $$rtokens[ $i + 1 ] !~ /[\s\w]/ )
+                {
+                    my $next2 = $$rtokens[ $i + 2 ];
+                    my $next1 = $$rtokens[ $i + 1 ];
+                    $identifier .= $tok . $next1 . $next2;
+                    $i += 2;
+                    $id_scan_state = '';
+                    last;
+                }
+
+                # skip something like ${xxx} or ->{
                 $id_scan_state = '';
 
                 # if this is the first token of a line, any tokens for this
@@ -22989,7 +23481,10 @@ sub scan_identifier_do {
         if ($saw_type) {
 
             if ($saw_alpha) {
-                $type = 'i';
+                if ( $identifier =~ /^->/ && $last_nonblank_type eq 'w' ) {
+                    $type = 'w';
+                }
+                else { $type = 'i' }
             }
             elsif ( $identifier eq '->' ) {
                 $type = '->';
@@ -23222,10 +23717,10 @@ BEGIN {
       A b C G L R f h Q k t w i q n p m F pp mm U j J Y Z v
       { } ( ) [ ] ; + - / * | % ! x ~ = \ ? : . < > ^ &
       #;
-    push ( @valid_token_types, @digraphs );
-    push ( @valid_token_types, @trigraphs );
-    push ( @valid_token_types, '#' );
-    push ( @valid_token_types, ',' );
+    push( @valid_token_types, @digraphs );
+    push( @valid_token_types, @trigraphs );
+    push( @valid_token_types, '#' );
+    push( @valid_token_types, ',' );
     @is_valid_token_type{@valid_token_types} = (1) x scalar(@valid_token_types);
 
     # a list of file test letters, as in -e (Table 3-4 of 'camel 3')
@@ -23475,14 +23970,14 @@ BEGIN {
     );
 
     # patched above for SWITCH/CASE
-    push ( @Keywords, @value_requestor );
+    push( @Keywords, @value_requestor );
 
     # These are treated the same but are not keywords:
     my @extra_vr = qw(
       constant
       vars
     );
-    push ( @value_requestor, @extra_vr );
+    push( @value_requestor, @extra_vr );
 
     @expecting_term_token{@value_requestor} = (1) x scalar(@value_requestor);
 
@@ -23513,7 +24008,7 @@ BEGIN {
       wantarray
     );
 
-    push ( @Keywords, @operator_requestor );
+    push( @Keywords, @operator_requestor );
 
     # These are treated the same but are not considered keywords:
     my @extra_or = qw(
@@ -23522,7 +24017,7 @@ BEGIN {
       STDOUT
     );
 
-    push ( @operator_requestor, @extra_or );
+    push( @operator_requestor, @extra_or );
 
     @expecting_operator_token{@operator_requestor} =
       (1) x scalar(@operator_requestor);
@@ -23542,7 +24037,7 @@ BEGIN {
       <= >= == != => \ > < % * / ? & | ** <=>
       f F pp mm Y p m U J G
       #;
-    push ( @value_requestor_type, ',' )
+    push( @value_requestor_type, ',' )
       ;    # (perl doesn't like a ',' in a qw block)
     @expecting_term_types{@value_requestor_type} =
       (1) x scalar(@value_requestor_type);
@@ -23557,6 +24052,9 @@ BEGIN {
     delete $really_want_term{'F'}; # file test works on $_ if no following term
     delete $really_want_term{'Y'}; # indirect object, too risky to check syntax;
                                    # let perl do it
+
+    @_ = qw(q qq qw qx qr s y tr m);
+    @is_q_qq_qw_qx_qr_s_y_tr_m{@_} = (1) x scalar(@_);
 
     # These keywords are handled specially in the tokenizer code:
     my @special_keywords = qw(
@@ -23575,7 +24073,7 @@ BEGIN {
       tr
       y
     );
-    push ( @Keywords, @special_keywords );
+    push( @Keywords, @special_keywords );
 
     # Keywords after which list formatting may be used
     # WARNING: do not include |map|grep|eval or perl may die on
@@ -23680,7 +24178,7 @@ __END__
 
 =head1 NAME
 
-Perl::Tidy - main module for the perltidy utility
+Perl::Tidy - Parses and beautifies perl source
 
 =head1 SYNOPSIS
 
@@ -23694,6 +24192,7 @@ Perl::Tidy - main module for the perltidy utility
         perltidyrc  => $perltidyrc,
         logfile     => $logfile,
         errorfile   => $errorfile,
+        formatter   => $formatter,  # callback object (see below)
     );
 
 =head1 DESCRIPTION
@@ -23791,6 +24290,142 @@ an array.
  perltidy( source => \$source, destination => \@dest );
  foreach (@dest) {print}
 
+=head1 Using the B<formatter> Callback Object
+
+The B<formatter> parameter is an optional callback object which allows
+the calling program to receive tokenized lines directly from perltidy for
+further specialized processing.  When this parameter is used, the two
+formatting options which are built into perltidy (beautification or
+html) are ignored.  The following diagram illustrates the logical flow:
+
+                    |-- (normal route)   -> code beautification
+  caller->perltidy->|-- (-html flag )    -> create html 
+                    |-- (formatter given)-> callback to write_line
+                     
+This can be useful for processing perl scripts in some way.  The 
+parameter $formatter in the perltidy call,
+
+        formatter   => $formatter,  
+
+is an object created by the caller with a C<write_line> method which
+will accept and process tokenized lines, one line per call.  Here is
+a simple example of a C<write_line> which merely prints the line number,
+the line type (as determined by perltidy), and the text of the line:
+
+ sub write_line {
+ 
+     # This is called from perltidy line-by-line
+     my $self              = shift;
+     my $line_of_tokens    = shift;
+     my $line_type         = $line_of_tokens->{_line_type};
+     my $input_line_number = $line_of_tokens->{_line_number};
+     my $input_line        = $line_of_tokens->{_line_text};
+     print "$input_line_number:$line_type:$input_line";
+ }
+
+The complete program, B<perllinetype>, is contained in the examples section of
+the source distribution.  As this example shows, the callback method
+receives a parameter B<$line_of_tokens>, which is a reference to a hash
+of other useful information.  This example uses these hash entries:
+
+ $line_of_tokens->{_line_number} - the line number (1,2,...)
+ $line_of_tokens->{_line_text}   - the text of the line
+ $line_of_tokens->{_line_type}   - the type of the line, one of:
+
+    SYSTEM         - system-specific code before hash-bang line
+    CODE           - line of perl code (including comments)
+    POD_START      - line starting pod, such as '=head'
+    POD            - pod documentation text
+    POD_END        - last line of pod section, '=cut'
+    HERE           - text of here-document
+    HERE_END       - last line of here-doc (target word)
+    FORMAT         - format section
+    FORMAT_END     - last line of format section, '.'
+    DATA_START     - __DATA__ line
+    DATA           - unidentified text following __DATA__
+    END_START      - __END__ line
+    END            - unidentified text following __END__
+    ERROR          - we are in big trouble, probably not a perl script
+
+Most applications will be only interested in lines of type B<CODE>.  For
+another example, let's write a program which checks for one of the
+so-called I<naughty matching variables> C<&`>, C<$&>, and C<$'>, which
+can slow down processing.  Here is a B<write_line>, from the example
+program B<find_naughty.pl>, which does that:
+
+ sub write_line {
+ 
+     # This is called back from perltidy line-by-line
+     # We're looking for $`, $&, and $'
+     my ( $self, $line_of_tokens ) = @_;
+ 
+     # pull out some stuff we might need
+     my $line_type         = $line_of_tokens->{_line_type};
+     my $input_line_number = $line_of_tokens->{_line_number};
+     my $input_line        = $line_of_tokens->{_line_text};
+     my $rtoken_type       = $line_of_tokens->{_rtoken_type};
+     my $rtokens           = $line_of_tokens->{_rtokens};
+     chomp $input_line;
+ 
+     # skip comments, pod, etc
+     return if ( $line_type ne 'CODE' );
+ 
+     # loop over tokens looking for $`, $&, and $'
+     for ( my $j = 0 ; $j < @$rtoken_type ; $j++ ) {
+ 
+         # we only want to examine token types 'i' (identifier)
+         next unless $$rtoken_type[$j] eq 'i';
+ 
+         # pull out the actual token text
+         my $token = $$rtokens[$j];
+ 
+         # and check it
+         if ( $token =~ /^\$[\`\&\']$/ ) {
+             print STDERR
+               "$input_line_number: $token\n";
+         }
+     }
+ }
+
+This example pulls out these tokenization variables from the $line_of_tokens
+hash reference:
+
+     $rtoken_type = $line_of_tokens->{_rtoken_type};
+     $rtokens     = $line_of_tokens->{_rtokens};
+
+The variable C<$rtoken_type> is a reference to an array of token type codes,
+and C<$rtokens> is a reference to a corresponding array of token text.
+These are obviously only defined for lines of type B<CODE>.
+Perltidy classifies tokens into types, and has a brief code for each type.
+You can get a complete list at any time by running perltidy from the
+command line with
+
+     perltidy --dump-token-types
+
+In the present example, we are only looking for tokens of type B<i>
+(identifiers), so the for loop skips past all other types.  When an
+identifier is found, its actual text is checked to see if it is one
+being sought.  If so, the above write_line prints the token and its
+line number.
+
+The B<formatter> feature is relatively new in perltidy, and further
+documentation needs to be written to complete its description.  However,
+several example programs have been written and can be found in the
+B<examples> section of the source distribution.  Probably the best way
+to get started is to find one of the examples which most closely matches
+your application and start modifying it.
+
+For help with perltidy's pecular way of breaking lines into tokens, you
+might run, from the command line, 
+
+ perltidy -D filename
+ 
+where F<filename> is a short script of interest.  This will produce
+F<filename.DEBUG> with interleaved lines of text and their token types.
+The -D flag has been in perltidy from the beginning for this purpose.
+If you want to see the code which creates this file, it is
+C<write_debug_entry> in Tidy.pm.
+
 =head1 EXPORT
 
   &perltidy
@@ -23802,7 +24437,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20021130.
+This man page documents Perl::Tidy version 20030726.
 
 =head1 AUTHOR
 

@@ -9,3 +9,12 @@ lextest  - needed by testfa. and testff.t
 bbtidy.pl - a main program which works as a filter under BBEdit+MacPerl
 
 perltidy.bat - sample batch file for msdos installations
+
+Some examples of a user defined callback object to parse perl:
+--------------------------------------------------------------
+find_naughty.pl - example using Perl::Tidy to find $`, $&, $' variables
+perlcomment.pl  - example using Perl::Tidy to reformat comments
+perllinetype.pl - example using Perl::Tidy to display types of lines
+perlmask.pl     - example using Perl::Tidy to create a masked file
+perlxmltok.pl   - example using Perl::Tidy to write a script in xml format
+

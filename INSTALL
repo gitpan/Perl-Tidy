@@ -1,21 +1,49 @@
 PERLTIDY INSTALLATION NOTES
-    This document tells how to install perltidy. The standard perl MakeMaker
-    method should work in most cases.
+Get a distribution file
+    Source Files in .tar.gz and .zip format
+        This document tells how to install perltidy from the basic source
+        distribution files in .tar.gz or .zip format. These files are
+        identical except for the line endings. The .tar.gz has Unix style
+        line endings, and the .zip file has Windows style line endings. The
+        standard perl MakeMaker method should work for these in most cases.
+
+    Source files in RPM and .deb format
+        The web site also has links to RPM and Debian .deb Linux packages,
+        which may be convenient for some users.
+
+Uninstall older versions
+    In certain circumstances, it is best to remove an older version of
+    perltidy before installing the latest version. These are:
+
+    Uninstall a Version older than 20020225
+        You can use perltidy -v to determine the version number. The first
+        version of perltidy to use Makefile.PL for installation was
+        20020225, so if your previous installation is older than this, it is
+        best to remove it, because the installation path may now be
+        different. There were up to 3 files these older installations: the
+        script perltidy and possibly two man pages, perltidy.1 and
+        perl2web.1. If you saved your Makefile, you can probably use "make
+        uninstall". Otherwise, you can use a locate or find command to find
+        and remove these files.
+
+    Uninstall older versions when changing installation method
+        If you switch from one installation method to another, the paths to
+        the components of perltidy may change, so it is probably best to
+        remove the older version before installing the new version. If your
+        older installation method had an uninstall option (such as with
+        RPM's and debian packages), use it. Otherwise, you can locate and
+        remove the older files by hand. There are two key files: Tidy.pm and
+        perltidy. In addition, there may be one or two man pages, something
+        like Perl::Tidy.3pm and perltidy.1p. You can use a "locate" and/or
+        "find" command to find and remove these files. After installation,
+        you can verify that the new version of perltidy is working with the
+        "perltidy -v" command.
 
 Two Installation Methods - Overview
     These are generic instructions. Some system-specific notes and hints are
     given in later sections.
 
     Two separate installation methods are possible.
-
-    Uninstalling a Version older than 20020225
-        You can use perltidy -v to determine the version number. The first
-        version of perltidy to use Makefile.PL for installation was
-        20020225, so if your previous installation is older than this, it is
-        best to remove it, because the installation path may now be
-        different. There were up to 3 files in previous installations: the
-        script perltidy and possibly two man pages, perltidy.1 and
-        perl2web.1.
 
     Method 1: Standard Installation Method
         The standard method based on MakeMaker should work in a normal perl
@@ -54,7 +82,8 @@ Two Installation Methods - Overview
         If the version number disagrees with the version number embedded in
         the distribution file name, search for and remove the old version.
         For example, under a Unix system, the command "which perltidy" might
-        show where it is.
+        show where it is. Also, see the above notes on uninstalling older
+        versions.
 
         On a Unix system running the "bash" shell, if you had a previous
         installation of perltidy, you may have to use
@@ -138,15 +167,20 @@ Two Installation Methods - Overview
 
   Windows Installation Notes
     On a Windows 9x/Me system you should CLOSE ANY OPEN APPLICATIONS to
-    avoid losing unsaved data in case of trouble. Please!
+    avoid losing unsaved data in case of trouble.
 
     Standard Method - Windows
-        The procedure is probably this:
+        After you unzip the distribution file, the procedure is probably
+        this:
 
                 perl Makefile.PL
                 nmake
                 nmake test
                 nmake install
+
+        You may need to download a copy of unzip to unzip the .zip
+        distribution file; you can get this at
+        http://www.info-zip.org/pub/infozip/UnZip.html
 
         If you have ActiveState Perl, the installation method is outlined at
         http://aspn.activestate.com//ASPN/Reference/Products/ActivePerl/faq/
@@ -157,7 +191,7 @@ Two Installation Methods - Overview
 
         If you are not familiar with installing modules, or have trouble
         doing so, and want to start testing perltidy quickly, you may want
-        to use the alternative method instead.
+        to use the alternative method instead (next section).
 
     Alternative Method - Windows
         From the main installation directory, just enter

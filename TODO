@@ -10,20 +10,14 @@ Perltidy TODO List
     An indentation level should be associated with ?: statements. This will
     make nested ?: statements more readable.
 
-  Fix numerous little formatting issues
-    There is, and always will be, a large number of other relatively minor
-    formatting issues that need to be addressed.
-
-  XML Output
-    A -xml option would allow the creation of simple utilities to reliably
-    manipulate perl code.
+  Recursive file processing
+    A -r flag might be nice.
 
   Documentation
     A FAQ is needed to explain some of the more subtle formatting issues,
     and to give examples of different styles.
 
-    The tokenizer needs extensive documentation before it can be released as
-    a separate module.
+    The -formatter callback object documentation is incomplete.
 
   HTML writer
     The HTML writer does not colorize interpolated identifiers in here
@@ -31,28 +25,4 @@ Perltidy TODO List
     information for here docs; it still needs to be updated to do this for
     multi-line quotes. Then code needs to be written to scan for and markup
     identifiers.
-
-  Tokenization issues
-    There are some subtle issues with distinguishing block types that should
-    be addressed to make the tokenizer more correct, even though they do not
-    interfere with code beautification. For example, in most cases the type
-    of a brace is known when it is encountered. But given this coding
-
-     sub something {
-         {
-            bla, bla
-         }
-         ..
-     }
-
-    we have to examine the first couple of tokens of the interior braces to
-    see if it is a code block or anonymous hash reference. This needs to be
-    done. Also, brace types of something like ${ ... } are not currently
-    labeled as code blocks because this simplifies formatting. However, this
-    should be done eventually for correctness.
-
-    Token type 'M' (for Method) has been reserved for subroutine definition
-    names. It needs to be implemented; I've patched around this in the html
-    writer for now. I'm considering new token types for prototypes and
-    attributes, to simplify parsing and formatting.
 
