@@ -293,30 +293,54 @@ per line.
 =head2 Closing Token Placement
 
 You have several options for dealing with the terminal closing tokens of
-non-blocks.  In the following examples, a closing parenthesis is shown,
-but these parameters apply to closing square brackets and curly braces
-as well.  Also, the following examples show the default indentation,
-but they apply for B<-lp> indentation as well.
+non-blocks.  In the following examples, a closing parenthesis is shown, but
+these parameters apply to closing square brackets and non-block curly braces as
+well.  
 
-The default is to put a closing paren on a separate line, with
-the indentation defined by the next (lower) indentation level, like this:
+The default behavior for parenthesized relatively large lists is to place the
+closing paren on a separate new line.  The flag B<-cti=n> controls the amount
+of indentation of such a closing paren.
 
+The default, B<-cti=0>, for a line beginning with a closing paren, is to use
+the indentation defined by the next (lower) indentation level.  This works
+well for the default indentation scheme:
+
+    # perltidy
     @month_of_year = (
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     );
 
-Skip ahead to L<Define Horizontal Tightness> if you like this.
+but it may not look very good with the B<-lp> indentation scheme:
 
-A slight variation is to place it on a separate line but leave it
-indented with the previous indentation level, like this:
-
+    # perltidy -lp
     @month_of_year = (
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        );
+                       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    );
 
-Use B<-icp> if you prefer this and skip ahead to L<Define Horizontal Tightness>.
+An alternative which works well with B<-lp> indentation is B<-cti=1>,
+which aligns the closing paren vertically with its
+opening paren, if possible:  
+
+    # perltidy -lp -cti=1
+    @month_of_year = (
+                       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                     );
+
+A third alternative, B<-cti=2>, indents a line with leading closing
+paren one full indentation level:
+
+    # perltidy -lp -cti=2
+    @month_of_year = (
+                       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                       );
+
+If you prefer the closing paren on a separate line like this, 
+note the value of B<-cti=n> that you prefer and skip ahead to 
+L<Define Horizontal Tightness>. 
 
 Finally, the question of paren indentation can be avoided by placing it
 at the end of the previous line, like this:
@@ -355,7 +379,11 @@ Here is B<-lp -vtc=2>:
 Choose the one that you prefer.  The difference is that B<-vtc=1> leaves
 closing tokens at the start of a line within a list, which can assist in
 keeping hierarchical lists readable.  The B<-vtc=2> style always tries
-to move closing tokens to the end of a line.
+to move closing tokens to the end of a line.  
+
+If you choose B<-vtc=1>,
+you may also want to specify a value of B<-cti=n> (previous section) to
+handle cases where a line begins with a closing paren.
 
 =head2 Define Horizontal Tightness
 
@@ -489,17 +517,18 @@ Here is the same snippet
 
     for (@methods)
     {
-        push (@results,
-              { name => $_->name,
+        push(@results,
+             {  name => $_->name,
                 help => $_->help,
-              }
-        );
+             }
+            );
     }
 
 for a F<.perltidyrc> file containing these parameters:
 
  -bl
  -lp
+ -cti=1
  -vt=1
  -pt=2
 

@@ -5,8 +5,8 @@ use strict;
 # line number : line type : line text
 #
 # usage:
-# perllinetype [-On]  myfile.pl >myfile.new
-# perllinetype [-On] <myfile.pl >myfile.new
+# perllinetype myfile.pl >myfile.new
+# perllinetype <myfile.pl >myfile.new
 #
 # This file is one of the examples distributed with perltidy and is a
 # simple demonstration of using a callback object with Perl::Tidy.

@@ -36,12 +36,12 @@ my $expected_output=<<'EOM';
            "archd",      91.4, "archc", 61,   "archb",  45.7,
            "archa",      30.5, "flsa",  33,   "flse",   33,
            "halfletter", 21.6, "11x17", 43.2, "ledger", 27.9
-           );
+          );
 %width = (
           "letter",     21.6, "legal", 21.6, "arche",  91.4,
           "archd",      61,   "archc", 45.7, "archb",  30.5,
           "archa",      22.9, "flsa",  21.6, "flse",   21.6,
           "halfletter", 14,   "11x17", 27.9, "ledger", 43.2
-          );
+         );
 EOM
 ok($output, $expected_output);

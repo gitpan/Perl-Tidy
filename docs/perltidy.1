@@ -130,7 +130,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2003-07-28" "perl v5.6.1" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2003-10-22" "perl v5.6.1" "User Contributed Perl Documentation"
 .UC
 .SH "NAME"
 perltidy \- a perl script indenter and reformatter
@@ -269,10 +269,10 @@ self-documenting and therefore useful in scripts.  It is customary to
 use two leading dashes for long names, but one may be used.
 .PP
 Most parameters which serve as on/off flags can be negated with a
-leading \*(L"n\*(R" (for the short name) or a leading \*(L"no\*(R" or \*(L"no\-\*(R" (for the long
-name).  For example, the flag to have perl check syntax using \fBperl \-c\fR
-is \fB\-syn\fR or \fB\-\-check\-syntax\fR.  The flag to skip this is
-\&\fB\-nsyn\fR or \fB\-\-nocheck\-syntax\fR or \fB\-\-no\-check\-syntax\fR.
+leading \*(L"n\*(R" (for the short name) or a leading \*(L"no\*(R" or \*(L"no\-\*(R" (for the
+long name).  For example, the flag to outdent long quotes is is \fB\-olq\fR
+or \fB\-\-outdent\-long\-quotes\fR.  The flag to skip this is \fB\-nolq\fR
+or \fB\-\-nooutdent\-long\-quotes\fR or \fB\-\-no\-outdent\-long\-quotes\fR.
 .PP
 Options may not be bundled together.  In other words, options \fB\-q\fR and
 \&\fB\-g\fR may \s-1NOT\s0 be entered as \fB\-qg\fR.
@@ -302,19 +302,16 @@ request outputting to the standard output.  For example,
 .Vb 1
 \&  perltidy somefile.pl -st >somefile.new.pl
 .Ve
-This option may only be used if there is just a single input file.  When
-this option is used, perltidy will have to create a temporary copy of
-the output file to feed to perl for syntax checking,
-unless allow syntax checking is disabled.  This file will be deleted
-when the job finishes.  The default is \fB\-nst\fR or \fB\-nostandard\-output\fR.
+This option may only be used if there is just a single input file.  
+The default is \fB\-nst\fR or \fB\-nostandard\-output\fR.
 .IP "\fB\-se\fR,    \fB\-\-standard\-error\-output\fR" 4
 .IX Item "-se,    --standard-error-output"
 If perltidy detects an error when processing file \fIsomefile.pl\fR, its
 default behavior is to write error messages to file \fIsomefile.pl.ERR\fR.
 Use \fB\-se\fR to cause all error messages to be sent to the standard error
-output stream instead.  This directive may be negated with \fB\-nse\fR. 
-Thus, you may place \fB\-se\fR in a \fI.perltidyrc\fR and override it
-when desired with \fB\-nse\fR on the command line.
+output stream instead.  This directive may be negated with \fB\-nse\fR.
+Thus, you may place \fB\-se\fR in a \fI.perltidyrc\fR and override it when
+desired with \fB\-nse\fR on the command line.
 .IP "\fB\-oext\fR=ext,    \fB\-\-output\-file\-extension\fR=ext" 4
 .IX Item "-oext=ext,    --output-file-extension=ext"
 Change the extension of the output file to be \fIext\fR instead of the
@@ -355,8 +352,8 @@ Change the extension of the backup file to be something other than the
 default \fI.bak\fR.  See \*(L"Specifying File Extensions\*(R".
 .IP "\fB\-w\fR,    \fB\-\-warning\-output\fR" 4
 .IX Item "-w,    --warning-output"
-Setting \fB\-w\fR causes perltidy to include any non-critical warning
-messages be reported as errors.  These include messages
+Setting \fB\-w\fR causes any non-critical warning
+messages to be reported as errors.  These include messages
 about possible pod problems, possibly bad starting indentation level,
 and cautions about indirect object usage.  The default, \fB\-nw\fR or
 \&\fB\-\-nowarning\-output\fR, is not to include these warnings.
@@ -470,31 +467,22 @@ option.
 .RE
 .IP "\fB\-syn\fR,   \fB\-\-check\-syntax\fR" 4
 .IX Item "-syn,   --check-syntax"
-The purpose of this flag is to alert you to any situation in which the
-input file has good syntax but the output file has bad syntax, which
-implies an error by perltidy.
-.Sp
 This flag causes perltidy to run \f(CW\*(C`perl \-c \-T\*(C'\fR to check syntax of input
-and output.  (To change the flags passed to perl, see the next item,
-\&\fB\-pscf\fR).  The results are written to the \fI.LOG\fR file, which will be
-saved if an error is detected in the output script.  The output script
-is not checked if the input script has a syntax error.  
+and output.  (To change the flags passed to perl, see the next
+item, \fB\-pscf\fR).  The results are written to the \fI.LOG\fR file, which
+will be saved if an error is detected in the output script.  The output
+script is not checked if the input script has a syntax error.  Perltidy
+does its own checking, but this option employs perl to get a \*(L"second
+opinion\*(R".
 .Sp
-If Perl reports errors in the input file, they will not be reported in
+If perl reports errors in the input file, they will not be reported in
 the error output unless the \fB\-warning\-output\fR flag is given. 
 .Sp
-To skip syntax checking, use \fB\-nsyn\fR or \fB\-\-nocheck\-syntax\fR.  Syntax
-checking is also deactivated by the \fB\-\-quiet\fR flag, discussed above.
-.Sp
-The default is to do a syntax check on most operating systems.  An
-exception is Windows 9x/Me systems, which do not handle this well.
-Another exception is when the input or output streams are not connected
-to identifiable filenames.  In the past, copies of these streams were
-saved in temporary files, but this has caused too many portability
-problems.
-.Sp
-\&\fBPlease note:\fR Even if this type of syntax checking is deactivated,
-perltidy will still do extensive syntax checking on its own.
+The default is \fBnot\fR to do this type of syntax checking (although
+perltidy will still do as much self-checking as possible).  The reason
+is that it causes all code in \s-1BEGIN\s0 blocks to be executed, for all
+modules being used, and this opens the door to security issues and
+infinite loops when running perltidy.
 .IP "\fB\-pscf=s\fR, \fB\-perl\-syntax\-check\-flags=s\fR" 4
 .IX Item "-pscf=s, -perl-syntax-check-flags=s"
 When perl is invoked to check syntax, the normal flags are \f(CW\*(C`\-c \-T\*(C'\fR.  In
@@ -520,6 +508,24 @@ a large script).
 .Sp
 Setting this flag is equivalent to setting \fB\-\-freeze\-newlines\fR and
 \&\fB\-\-freeze\-whitespace\fR.
+.IP "\fB\-ole=s\fR,  \fB\-\-output\-line\-ending=s\fR" 4
+.IX Item "-ole=s,  --output-line-ending=s"
+where s=\f(CW\*(C`win\*(C'\fR, \f(CW\*(C`dos\*(C'\fR, \f(CW\*(C`unix\*(C'\fR, or \f(CW\*(C`mac\*(C'\fR.  This flag tells perltidy
+to output line endings for a specific system.  Normally,
+perltidy writes files with the line separator character of the host
+system.  The \f(CW\*(C`win\*(C'\fR and \f(CW\*(C`dos\*(C'\fR flags have an identical result.
+\&\fB\s-1NOTE\s0\fR: This only works under unix-like systems and is ignored under
+other systems.
+.IP "\fB\-ple\fR,  \fB\-\-preserve\-line\-endings\fR" 4
+.IX Item "-ple,  --preserve-line-endings"
+This flag tells perltidy to write its output files with the same line
+endings as the input file, if possible.  It should work for
+\&\fBdos\fR, \fBunix\fR, and \fBmac\fR line endings.  It will only work if perltidy
+input comes from a filename (rather than stdin, for example).  If
+perltidy has trouble determining the input file line ending, it will
+revert to the default behavior of using the line ending of the host system.
+\&\fB\s-1NOTE\s0\fR: This only works under unix-like systems and is ignored under
+other systems.
 .Sh "Code Indentation Control"
 .IX Subsection "Code Indentation Control"
 .IP "\fB\-ci=n\fR, \fB\-\-continuation\-indentation=n\fR" 4
@@ -539,7 +545,7 @@ The same example, with n=0, is a little harder to read:
 .Ve
 The value given to \fB\-ci\fR is also used by some commands when a small
 space is required.  Examples are commands for outdenting labels,
-\&\fB\-ola\fR, and control keywords, \fB\-ock\fR.  
+\&\fB\-ola\fR, and control keywords, \fB\-okw\fR.  
 .Sp
 When default values are not used, it is suggested that the value \fBn\fR
 given with \fB\-ci=n\fR be no more than about one-half of the number of
@@ -576,7 +582,8 @@ hash.  With this option, the above list would become:
 \&    );
 .Ve
 If the available line length (see \fB\-l=n\fR ) does not permit this much 
-space, perltidy will use less.  
+space, perltidy will use less.   For alternate placement of the
+closing paren, see the next section.
 .Sp
 This option has no effect on code \s-1BLOCKS\s0, such as if/then/else blocks,
 which always use whatever is specified with \fB\-i=n\fR.  Also, the
@@ -593,19 +600,50 @@ perltidy to choose newlines will conflict with \fB\-lp\fR and will cause
 \&\fB\-ndnl\fR.  The reason is that the \fB\-lp\fR indentation style can require
 the careful coordination of an arbitrary number of break points in
 hierarchical lists, and these flags may prevent that.
-.IP "\fB\-icp\fR, \fB\-\-indent\-closing\-paren\fR" 4
-.IX Item "-icp, --indent-closing-paren"
-The \fB\-icp\fR option leaves a list-termination line of the form \f(CW\*(C`);\*(C'\fR, \f(CW\*(C`};\*(C'\fR,
-or \f(CW\*(C`];\*(C'\fR indented with the same indentation as the previous line.  The
-previous example with \fB\-icp\fR would give,
+.IP "\fB\-cti=n\fR, \fB\-\-closing\-token\-indentation\fR" 4
+.IX Item "-cti=n, --closing-token-indentation"
+The \fB\-cti=n\fR flag controls the indentation of a line beginning with 
+a \f(CW\*(C`)\*(C'\fR, \f(CW\*(C`]\*(C'\fR, or a non-block \f(CW\*(C`}\*(C'\fR.  Such a line receives:
 .Sp
 .Vb 5
-\&    # perltidy -icp:
-\&    @month_of_year = (
-\&        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-\&        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-\&        );
+\& -cti = 0 no extra indentation (default)
+\& -cti = 1 extra indentation such that the closing token
+\&        aligns with its opening token.
+\& -cti = 2 one extra indentation level if the line looks like:
+\&        );  or  ];  or  };
 .Ve
+The flags \fB\-cti=1\fR and \fB\-cti=2\fR work well with the \fB\-lp\fR flag (previous
+section).
+.Sp
+.Vb 5
+\&    # perltidy -lp -cti=1
+\&    @month_of_year = (
+\&                       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+\&                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+\&                     );
+.Ve
+.Vb 5
+\&    # perltidy -lp -cti=2
+\&    @month_of_year = (
+\&                       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+\&                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+\&                       );
+.Ve
+These flags are merely hints to the formatter and they may not always be
+followed.  In particular, if \-lp is not being used, the indentation for
+\&\fBcti=1\fR is constrained to be no more than one indentation level.
+.Sp
+If desired, this control can be applied independently to each of the
+closing container token types.  In fact, \fB\-cti=n\fR is merely an
+abbreviation for \fB\-cpi=n \-csbi=n \-cbi=n\fR, where:  
+\&\fB\-cpi\fR or \fB\-closing\-paren\-indentation\fR controls \fB)\fR's,
+\&\fB\-csbi\fR or \fB\-closing\-square\-bracket\-indentation\fR controls \fB]\fR's, 
+\&\fB\-cbi\fR or \fB\-closing\-brace\-indentation\fR controls non-block \fB}\fR's. 
+.IP "\fB\-icp\fR, \fB\-\-indent\-closing\-paren\fR" 4
+.IX Item "-icp, --indent-closing-paren"
+The \fB\-icp\fR flag is equivalent to
+\&\fB\-cti=2\fR, described in the previous section.  The \fB\-nicp\fR flag is
+equivalent \fB\-cti=0\fR.  They are included for backwards compatability.
 .IP "\fB\-icb\fR, \fB\-\-indent\-closing\-brace\fR" 4
 .IX Item "-icb, --indent-closing-brace"
 The \fB\-icb\fR option leaves a brace which terminates a code block 
@@ -660,7 +698,7 @@ possible.  By default, these keywords are \f(CW\*(C`redo\*(C'\fR, \f(CW\*(C`next
 easier to see.  To change this list of keywords being outdented, see
 the next section.
 .Sp
-For example, using \f(CW\*(C`perltidy \-ock\*(C'\fR on the previous example gives:
+For example, using \f(CW\*(C`perltidy \-okw\*(C'\fR on the previous example gives:
 .Sp
 .Vb 6
 \&        my $i;
@@ -2295,8 +2333,8 @@ The following list shows all short parameter names which allow a prefix
 .Vb 5
 \&    D anl asc aws b bbb bbc bbs bli boc bok bol bot syn ce csc 
 \&    dac dbc dcsc dnl dws dp dpro dsm dsc ddf dln dop dsn dtt dwls dwrs 
-\&    f fll frm hsc html ibc icb icp iob isbc lp log lal x lsl pod bl 
-\&    sbl okw ola oll pvl q opt sbc sfs ssc sts se st sob 
+\&    f fll frm hsc html ibc icb icp iob isbc lp log lal x lsl ple pod bl 
+\&    sbl okw ola oll ple pvl q opt sbc sfs ssc sts se st sob 
 \&    t tac tbc toc tp tsc tqw w
 .Ve
 Equivalently, the prefix 'no' or 'no\-' on the corresponding long names may be
@@ -2355,7 +2393,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20030726.
+This man page documents perltidy version 20031021.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with

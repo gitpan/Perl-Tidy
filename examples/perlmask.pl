@@ -42,7 +42,7 @@ use strict;
 # using a callback object with Perl::Tidy to walk through a perl file and find
 # all of its tokens.  It can be useful for simple perl code parsing tasks.  It
 # might even be helpful in debugging.  Or you may want to modify it to suit
-# your own purposes; see sub get_line().
+# your own purposes.
 #
 use Getopt::Std;
 use IO::File;
@@ -135,6 +135,9 @@ EOM
 }
 
 sub print_line {
+
+    # called from write_line to dispatch one line (either masked or original)..
+    # here we'll either append it to a string or array, as appropriate
     my ( $rfile, $line ) = @_;
     if ( defined($rfile) ) {
         if ( ref($rfile) eq 'SCALAR' ) {
