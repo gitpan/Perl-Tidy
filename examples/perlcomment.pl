@@ -8,7 +8,7 @@
 #
 # where -l specifies the maximum comment line length.
 #
-# You will be given an opportunity to accept or reject eacy proposed
+# You will be given an opportunity to accept or reject each proposed
 # change.
 #
 # This file demonstrates using Perl::Tidy to walk through a perl file
@@ -224,9 +224,9 @@ sub queryu {
 }
 
 sub ifyes {
-    my $ans   = queryu(@_);
     my $count = 0;
   ASK:
+    my $ans   = queryu(@_);
     if    ( $ans =~ /^Y/ ) { return 1 }
     elsif ( $ans =~ /^N/ ) { return 0 }
     else {

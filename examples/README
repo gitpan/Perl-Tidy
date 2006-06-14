@@ -8,7 +8,11 @@ lextest  - needed by testfa. and testff.t
 
 bbtidy.pl - a main program which works as a filter under BBEdit+MacPerl
 
-perltidy.bat - sample batch file for msdos installations
+pt.bat - sample batch file for msdos installations
+        (change name to perltidy.bat)
+
+perltidyrc_dump.pl - a program to dump a .perltidyrc file
+    see comments inside for usage
 
 Some examples of a user defined callback object to parse perl:
 --------------------------------------------------------------

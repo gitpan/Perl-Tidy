@@ -4,6 +4,113 @@ Perltidy Change Log
      please send a note to perltidy at users.sourceforge.net.  All
      suggestions are welcome.
 
+  2006 06 14
+     -Attribute argument lists are now correctly treated as quoted strings
+     and not formatted.  This is the most important update in this version.
+     Thanks to Borris Zentner, Greg Ferguson, Steve Kirkup.
+
+     -Updated to recognize the defined or operator, //, to be released in Perl 10.
+     Thanks to Sebastien Aperghis-Tramoni.
+
+     -A useful utility perltidyrc_dump.pl is included in the examples section.  It
+     will read any perltidyrc file and write it back out in a standard format
+     (though comments are lost).
+
+     -Added option to have perltidy read and return a hash with the contents of a
+     perltidyrc file.  This may be used by Leif Eriksen's tidyview code.  This
+     feature is used by the demonstration program 'perltidyrc_dump.pl' in the
+     examples directory.
+
+     -Improved error checking in perltidyrc files.  Unknown bare words were not
+     being caught.
+
+     -The --dump-options parameter now dumps parameters in the format required by a
+     perltidyrc file.
+
+     -V-Strings with underscores are now recognized.
+     For example: $v = v1.2_3; 
+
+     -cti=3 option added which gives one extra indentation level to closing 
+     tokens always.  This provides more predictable closing token placement
+     than cti=2.  If you are using cti=2 you might want to try cti=3.
+
+     -To identify all left-adjusted comments as static block comments, use C<-sbcp='^#'>.
+
+     -New parameters -fs, -fsb, -fse added to allow sections of code between #<<<
+     and #>>> to be passed through verbatim. This is enabled by default and turned
+     off by -nfs.  Flags -fsb and -fse allow other beginning and ending markers.
+     Thanks to Wolfgang Werner and Marion Berryman for suggesting this.  
+
+     -added flag -skp to put a space between all Perl keywords and following paren.
+     The default is to only do this for certain keywords.  Suggested by
+     H.Merijn Brand.
+
+     -added flag -sfp to put a space between a function name and following paren.
+     The default is not to do this.  Suggested by H.Merijn Brand.
+
+     -Added patch to avoid breaking GetOpt::Long::Configure set by calling program. 
+     Thanks to BOOK at CPAN. 
+
+     -An error was fixed in which certain parameters in a .perltidyrc file given
+     without the equals sign were not recognized.  That is,
+     '--brace-tightness 0' gave an error but '--brace-tightness=0' worked
+     ok.  Thanks to Zac Hansen.
+
+     -An error preventing the -nwrs flag from working was corrected. Thanks to
+      Greg Ferguson.
+
+     -Corrected some alignment problems with entab option.
+
+     -A bug with the combination of -lp and -extrude was fixed (though this
+     combination doesn't really make sense).  The bug was that a line with
+     a single zero would be dropped.  Thanks to Cameron Hayne.
+
+     -Updated Windows detection code to avoid an undefined variable.
+     Thanks to Joe Yates and Russ Jones.
+
+     -Improved formatting for short trailing statements following a closing paren.
+     Thanks to Joe Matarazzo.
+
+     -The handling of the -icb (indent closing block braces) flag has been changed
+     slightly to provide more consistent and predictable formatting of complex
+     structures.  Instead of giving a closing block brace the indentation of the
+     previous line, it is now given one extra indentation level.  The two methods
+     give the same result if the previous line was a complete statement, as in this
+     example:
+
+            if ($task) {
+                yyy();
+                }    # -icb
+            else {
+                zzz();
+                }
+     The change also fixes a problem with empty blocks such as:
+
+        OLD, -icb:
+        elsif ($debug) {
+        }
+
+        NEW, -icb:
+        elsif ($debug) {
+            }
+
+     -A problem with -icb was fixed in which a closing brace was misplaced when
+     it followed a quote which spanned multiple lines.
+
+     -Some improved breakpoints for -wba='&& || and or'
+
+     -Fixed problem with misaligned cuddled else in complex statements
+     when the -bar flag was also used.  Thanks to Alex and Royce Reese.
+
+     -Corrected documentation to show that --outdent-long-comments is the default.
+     Thanks to Mario Lia.
+
+     -New flag -otr (opening-token-right) is similar to -bar (braces-always-right)
+     but applies to non-structural opening tokens.
+
+     -new flags -sot (stack-opening-token), -sct (stack-closing-token).
+     Suggested by Tony.
+
   2003 10 21
      -The default has been changed to not do syntax checking with perl.  
        Use -syn if you want it.  Perltidy is very robust now, and the -syn
@@ -26,12 +133,12 @@ Perltidy Change Log
       In most cases it looks better.  To recover the previous format, use
       '-gnu -cti=2'
 
-     -Added flags B<-cti=n> for finer control of closing token indentation.
+     -Added flags -cti=n for finer control of closing token indentation.
        -cti = 0 no extra indentation (default; same as -nicp)
        -cti = 1 enough indentation so that the closing token
             aligns with its opening token.
        -cti = 2 one extra indentation level if the line has the form 
-              C<);>, C<];>, or <};> (same as -icp).
+              );   ];   or   };     (same as -icp).
 
        The new option -cti=1 works well with -lp:
 
@@ -100,7 +207,7 @@ Perltidy Change Log
      prevent the use of Html::Entities to encode special symbols.  The
      default is -hent.  Html::Entities when formatting perl text to escape
      special symbols.  This may or may not be the right thing to do,
-     depending on browser/language combinations.  Thanks to Gurak Bursoy for
+     depending on browser/language combinations.  Thanks to Burak Gursoy for
      this suggestion.
 
      -Bareword strings with leading '-', like, '-foo' now count as 1 token

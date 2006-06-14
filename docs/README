@@ -1,7 +1,7 @@
 All of the documentation for perltidy can be found at 
 http://perltidy.sourceforge.net
 
-The man page is in pod formatt appended to the script bin/perltidy.
+The man page is in pod format appended to the script bin/perltidy.
 
 The man page for use of the module Perl::Tidy.pm is appended to that file.
 

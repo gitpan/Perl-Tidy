@@ -11,6 +11,11 @@ Get a distribution file
         The web site also has links to RPM and Debian .deb Linux packages,
         which may be convenient for some users.
 
+Quick Test Drive
+    If you want to do a quick test of perltidy without doing any
+    installation, get a .tar.gz or a .zip source file and see the section
+    below "Method 2: Installation as a single binary script".
+
 Uninstall older versions
     In certain circumstances, it is best to remove an older version of
     perltidy before installing the latest version. These are:
@@ -60,18 +65,26 @@ Two Installation Methods - Overview
         install" step.
 
     Method 2: Installation as a single binary script
-        An alternative method is possible which avoids installing modules.
-        This method can be used to quickly test perltidy to see if it will
-        be useful, without doing a full installation. Also, this might be
-        helpful on a system for which the Makefile.PL method does not work,
-        or if you are temporarily a guest on some system.
+        If you just want to take perltidy for a quick test drive without
+        installing it, or are having trouble installing modules, you can
+        bundle it all in one independent executable script. This might also
+        be helpful on a system for which the Makefile.PL method does not
+        work, or if you are temporarily a guest on some system, or if you
+        want to try hacking a special version of perltidy without messing up
+        your regular version.
 
-        The command to do this is
+        You just need to uncompress the source distribution, cd down into
+        it, and enter the command:
 
                 perl pm2pl
 
         which will combine the pieces of perltidy into a single script named
-        perltidy in the current directory. This script should be functional.
+        perltidy in the current directory. This script should be fully
+        functional. Try it out on a handy perl script, for example
+
+          perl perltidy Makefile.PL
+
+        This should create Makefile.PL.tdy.
 
     After Installation
         After installation by either method, verify that the installation
