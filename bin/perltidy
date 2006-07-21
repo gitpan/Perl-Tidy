@@ -1858,9 +1858,9 @@ return lists, such as C<sort> and <map>.  This allows chains of these
 operators to be displayed one per line.  Use B<-nbok> to prevent
 retaining these breakpoints.
 
-=item B<-bot>,  B<--break-at-old-trinary-breakpoints>
+=item B<-bot>,  B<--break-at-old-ternary-breakpoints>
 
-By default, if a conditional (trinary) operator is broken at a C<:>,
+By default, if a conditional (ternary) operator is broken at a C<:>,
 then it will remain broken.  To prevent this, and thereby
 form longer lines, use B<-nbot>.
 
@@ -1964,6 +1964,18 @@ not apply to perl) as they are sometimes implemented.  At present, this
 style overrides the default style with the following parameters:
 
     -lp -bl -noll -pt=2 -bt=2 -sbt=2 -icp
+
+=item B<-pbp>, B<--perl-best-practices>
+
+B<-pbp> is an abbreviation for the parameters in the book B<Perl Best Practices>
+by Damian Conway:
+
+    -l=78 -i=4 -ci=4 -st -se -vt=2 -cti=0 -pt=1 -bt=1 -sbt=1 -bbt=1 -nsfs -nolq
+    -wbb="% + - * / x != == >= <= =~ !~ < > | & >= < = 
+          **= += *= &= <<= &&= -= /= |= >>= ||= .= %= ^= x="
+
+Note that the -st and -se flags make perltidy act as a filter on one file only.  
+These can be overridden with -nst and -nse if necessary.
 
 =back
 
@@ -2605,7 +2617,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20060614.
+This man page documents perltidy version 20060719.
 
 =head1 CREDITS
 
