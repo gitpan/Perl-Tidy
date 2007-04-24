@@ -19,6 +19,7 @@ docs/testfile.pl
 docs/tutorial.pod
 examples/README
 examples/bbtidy.pl
+examples/break_long_quotes.pl
 examples/ex_mp.pl
 examples/lextest
 examples/find_naughty.pl

@@ -1,10 +1,10 @@
 Perltidy open BUGS
-     You can help perltidy evolve into a better program.  If you think you
-     have hit a bug or weird behavior, or have a suggested improvement,
-     please send a note to perltidy at users.sourceforge.net.
+    You can help perltidy evolve into a better program. If you think you
+    have hit a bug or weird behavior, or have a suggested improvement,
+    please send a note to perltidy at users.sourceforge.net.
 
-     This file only lists open bugs.  For bugs which have been fixed, 
-     see the ChangeLog.  
+    This file only lists open bugs. For bugs which have been fixed, see the
+    ChangeLog.
 
   The --extrude option can produce code with syntax errors
     The --extrude tries to put as many newlines in the formatted code as

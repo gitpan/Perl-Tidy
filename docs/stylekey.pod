@@ -15,6 +15,8 @@ Then move it to one of the places where perltidy will find it.  You can run
 perltidy with the parameter B<-dpro> to see where these places are for your
 system.
 
+=head2 Before You Start
+
 Before you begin, experiment using just C<perltidy filename.pl> on some
 of your files.  From the results (which you will find in files with a
 F<.tdy> extension), you will get a sense of what formatting changes, if
@@ -753,6 +755,15 @@ for a F<.perltidyrc> file containing these parameters:
  -lp
  -vt=1
  -vtc=1
+
+=head2 Tidyview
+
+There is a graphical program called B<tidyview> which you can use to read a
+preliminary F<.perltidyrc> file, make trial adjustments and immediately see
+their effect on a test file, and then write a new F<.perltidyrc>.  You can
+download a copy at
+
+http://sourceforge.net/projects/tidyview
 
 =head2 Additional Information
 
