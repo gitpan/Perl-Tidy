@@ -1,3 +1,9 @@
+perltidy (20070504-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Steve Hancock <perltidy@users.sourceforge.net>  Fri, 04 May 2007 07:03:29 -0700
+ 
 perltidy (20070424-1) unstable; urgency=low
 
   * New upstream release
