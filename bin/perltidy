@@ -1152,6 +1152,17 @@ please be aware that since this string is used in a perl regular expression
 which identifies these comments, it must enable a valid regular expression to
 be formed.
 
+A pattern which can be useful is:
+
+    -sbcp=^#{2,}[^\s#] 
+
+This pattern requires a static block comment to have at least one character
+which is neither a # nor a space.  It allows a line containing only '#'
+characters to be rejected as a static block comment.  Such lines are often used
+at the start and end of header information in subroutines and should not be
+separated from the intervening comments, which typically begin with just a
+single '#'.
+
 =item B<-osbc>, B<--outdent-static-block-comments>
 
 The command B<-osbc> will will cause static block comments to be outdented by 2
@@ -1576,7 +1587,7 @@ There is no vertical tightness control for closing block braces; with
 the exception of one-line blocks, they will normally remain on a 
 separate line.
 
-=item B<-sot>,  B<--stack-opening-token> and related flags
+=item B<-sot>,  B<--stack-opening-tokens> and related flags
 
 The B<-sot> flag tells perltidy to "stack" opening tokens
 when possible to avoid lines with isolated opening tokens.
@@ -1609,7 +1620,7 @@ controls can be used:
 
 The flag B<-sot> is a synonym for B<-sop -sohb -sosb>.
 
-=item B<-sct>,  B<--stack-closing-token> and related flags
+=item B<-sct>,  B<--stack-closing-tokens> and related flags
 
 The B<-sct> flag tells perltidy to "stack" closing tokens
 when possible to avoid lines with isolated closing tokens.
@@ -1727,6 +1738,7 @@ The -baao sets the default to be to break after all of the following operators:
 
     % + - * / x != == >= <= =~ !~ < > | & 
     = **= += *= &= <<= &&= -= /= |= >>= ||= //= .= %= ^= x=
+    . : ? && || and or err xor
 
 and the B<-bbao> flag sets the default to break before all of these operators.
 These can be used to define an initial break preference which can be fine-tuned
@@ -1894,7 +1906,7 @@ limit.
 =item B<-kis>,  B<--keep-interior-semicolons>
 
 Use the B<-kis> flag to prevent breaking at a semicolon if
-there was no break there in the input flag.  Normally
+there was no break there in the input file.  Normally
 perltidy places a newline after each semicolon which
 terminates a statement unless several statements are
 contained within a one-line brace block.  To illustrate,
@@ -2077,7 +2089,8 @@ named F<.perltidyrc>.  If it does not find one, it will continue looking
 for one in other standard locations.  
 
 These other locations are system-dependent, and may be displayed with
-the command C<perltidy -dpro>.  Under Unix systems, it will look for a
+the command C<perltidy -dpro>.  Under Unix systems, it will first look
+for an environment variable B<PERLTIDY>.  Then it will look for a
 F<.perltidyrc> file in the home directory, and then for a system-wide
 file F</usr/local/etc/perltidyrc>, and then it will look for
 F</etc/perltidyrc>.  Note that these last two system-wide files do not
@@ -2665,7 +2678,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20070801.
+This man page documents perltidy version 20071205.
 
 =head1 CREDITS
 

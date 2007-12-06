@@ -1,4 +1,43 @@
 Perltidy Change Log
+  2007 12 05
+     -Improved support for perl 5.10: New quote modifier 'p', new block type UNITCHECK, 
+     new keyword break, improved formatting of given/when.
+
+     -Corrected tokenization bug of something like $var{-q}.
+
+     -Numerous minor formatting improvements.
+
+     -Corrected list of operators controlled by -baao -bbao to include
+       . : ? && || and or err xor
+
+     -Corrected very minor error in log file involving incorrect comment
+     regarding need for upper case of labels.  
+
+     -Fixed problem where perltidy could run for a very long time
+     when given certain non-perl text files.
+
+     -Line breaks in un-parenthesized lists now try to follow
+     line breaks in the input file rather than trying to fill
+     lines.  This usually works better, but if this causes
+     trouble you can use -iob to ignore any old line breaks.
+     Example for the following input snippet:
+
+        print
+        "conformability (Not the same dimension)\n",
+        "\t", $have, " is ", text_unit($hu), "\n",
+        "\t", $want, " is ", text_unit($wu), "\n",
+        ;
+
+      OLD:
+        print "conformability (Not the same dimension)\n", "\t", $have, " is ",
+          text_unit($hu), "\n", "\t", $want, " is ", text_unit($wu), "\n",;
+
+      NEW:
+        print "conformability (Not the same dimension)\n",
+          "\t", $have, " is ", text_unit($hu), "\n",
+          "\t", $want, " is ", text_unit($wu), "\n",
+          ;
+
   2007 08 01
      -Added -fpsc option (--fixed-position-side-comment). Thanks to Ueli Hugenschmidt. 
      For example -fpsc=40 tells perltidy to put side comments in column 40
@@ -13,7 +52,7 @@ Perltidy Change Log
 
      -Added -kis option (--keep-interior-semicolons).  Use the B<-kis> flag
      to prevent breaking at a semicolon if there was no break there in the
-     input flag.  To illustrate, consider the following input lines:
+     input file.  To illustrate, consider the following input lines:
 
         dbmclose(%verb_delim); undef %verb_delim;
         dbmclose(%expanded); undef %expanded;

@@ -129,7 +129,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2007-08-01" "perl v5.8.8" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2007-12-05" "perl v5.8.8" "User Contributed Perl Documentation"
 .SH "NAME"
 perltidy \- a perl script indenter and reformatter
 .SH "SYNOPSIS"
@@ -1254,6 +1254,19 @@ block comments; it will not be used unless the switch \fB\-sbc\fR is set.  Also,
 please be aware that since this string is used in a perl regular expression
 which identifies these comments, it must enable a valid regular expression to
 be formed.
+.Sp
+A pattern which can be useful is:
+.Sp
+.Vb 1
+\&    \-sbcp=^#{2,}[^\es#]
+.Ve
+.Sp
+This pattern requires a static block comment to have at least one character
+which is neither a # nor a space.  It allows a line containing only '#'
+characters to be rejected as a static block comment.  Such lines are often used
+at the start and end of header information in subroutines and should not be
+separated from the intervening comments, which typically begin with just a
+single '#'.
 .IP "\fB\-osbc\fR, \fB\-\-outdent\-static\-block\-comments\fR" 4
 .IX Item "-osbc, --outdent-static-block-comments"
 The command \fB\-osbc\fR will will cause static block comments to be outdented by 2
@@ -1692,8 +1705,8 @@ For example, if we want to just apply this style to \f(CW\*(C`if\*(C'\fR,
 There is no vertical tightness control for closing block braces; with
 the exception of one-line blocks, they will normally remain on a 
 separate line.
-.IP "\fB\-sot\fR,  \fB\-\-stack\-opening\-token\fR and related flags" 4
-.IX Item "-sot,  --stack-opening-token and related flags"
+.IP "\fB\-sot\fR,  \fB\-\-stack\-opening\-tokens\fR and related flags" 4
+.IX Item "-sot,  --stack-opening-tokens and related flags"
 The \fB\-sot\fR flag tells perltidy to \*(L"stack\*(R" opening tokens
 when possible to avoid lines with isolated opening tokens.
 .Sp
@@ -1730,8 +1743,8 @@ controls can be used:
 .Ve
 .Sp
 The flag \fB\-sot\fR is a synonym for \fB\-sop \-sohb \-sosb\fR.
-.IP "\fB\-sct\fR,  \fB\-\-stack\-closing\-token\fR and related flags" 4
-.IX Item "-sct,  --stack-closing-token and related flags"
+.IP "\fB\-sct\fR,  \fB\-\-stack\-closing\-tokens\fR and related flags" 4
+.IX Item "-sct,  --stack-closing-tokens and related flags"
 The \fB\-sct\fR flag tells perltidy to \*(L"stack\*(R" closing tokens
 when possible to avoid lines with isolated closing tokens.
 .Sp
@@ -1855,9 +1868,10 @@ capability, can simplify input are:
 .Sp
 The \-baao sets the default to be to break after all of the following operators:
 .Sp
-.Vb 2
+.Vb 3
 \&    % + \- * / x != == >= <= =~ !~ < > | & 
 \&    = **= += *= &= <<= &&= \-= /= |= >>= ||= //= .= %= ^= x=
+\&    . : ? && || and or err xor
 .Ve
 .Sp
 and the \fB\-bbao\fR flag sets the default to break before all of these operators.
@@ -2024,7 +2038,7 @@ limit.
 .IP "\fB\-kis\fR,  \fB\-\-keep\-interior\-semicolons\fR" 4
 .IX Item "-kis,  --keep-interior-semicolons"
 Use the \fB\-kis\fR flag to prevent breaking at a semicolon if
-there was no break there in the input flag.  Normally
+there was no break there in the input file.  Normally
 perltidy places a newline after each semicolon which
 terminates a statement unless several statements are
 contained within a one-line brace block.  To illustrate,
@@ -2185,7 +2199,8 @@ named \fI.perltidyrc\fR.  If it does not find one, it will continue looking
 for one in other standard locations.  
 .Sp
 These other locations are system\-dependent, and may be displayed with
-the command \f(CW\*(C`perltidy \-dpro\*(C'\fR.  Under Unix systems, it will look for a
+the command \f(CW\*(C`perltidy \-dpro\*(C'\fR.  Under Unix systems, it will first look
+for an environment variable \fB\s-1PERLTIDY\s0\fR.  Then it will look for a
 \&\fI.perltidyrc\fR file in the home directory, and then for a system-wide
 file \fI/usr/local/etc/perltidyrc\fR, and then it will look for
 \&\fI/etc/perltidyrc\fR.  Note that these last two system-wide files do not
@@ -2762,7 +2777,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20070801.
+This man page documents perltidy version 20071205.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with
