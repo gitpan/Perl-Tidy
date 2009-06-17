@@ -68,7 +68,7 @@ F<.ERR>.
 
   perltidy -b file1.pl file2.pl
 
-Modify F<file1.pl> and F<file1.pl> in place, and backup the originals to
+Modify F<file1.pl> and F<file2.pl> in place, and backup the originals to
 F<file1.pl.bak> and F<file2.pl.bak>.  If F<file1.pl.bak> and/or F<file2.pl.bak>
 already exist, they will be overwritten.
 
@@ -399,8 +399,10 @@ exactly what flags were passed to perl.
 
 =item B<-io>,   B<--indent-only>       
 
-This flag is used to deactivate all formatting and line break changes.
-When it is in effect, the only change to the script will be indentation.
+This flag is used to deactivate all formatting and line break changes
+within non-blank lines of code.
+When it is in effect, the only change to the script will be
+to the indentation and blank lines.
 And any flags controlling whitespace and newlines will be ignored.  You
 might want to use this if you are perfectly happy with your whitespace
 and line breaks, and merely want perltidy to handle the indentation.
@@ -409,7 +411,10 @@ useful when perltidy is merely being used to help find a brace error in
 a large script).
 
 Setting this flag is equivalent to setting B<--freeze-newlines> and
-B<--freeze-whitespace>.
+B<--freeze-whitespace>.  
+
+If you also want to keep your existing blank lines exactly
+as they are, you can add B<--freeze-blank-lines>. 
 
 =item B<-ole=s>,  B<--output-line-ending=s>
 
@@ -1001,7 +1006,28 @@ characters.  Omitted text is indicated with C<...>.  (Tokens, including
 sub names, are never truncated, however, so actual lengths may exceed
 this).  To illustrate, in the above example, the appended text of the
 first block is C< ( !defined( $_[0] )...>.  The existing limit of
-C<n=20> caused this text to be truncated, as indicated by the C<...>.
+C<n=20> caused this text to be truncated, as indicated by the C<...>.  See
+the next flag for additional control of the abbreviated text.
+
+=item B<-cscb>, or B<--closing-side-comments-balanced> 
+
+As discussed in the previous item, when the
+closing-side-comment-maximum-text limit is exceeded the comment text must
+be truncated.  Older versions of perltidy terminated with three dots, and this
+can still be achieved with -ncscb:
+
+  perltidy -csc -ncscb
+  } ## end foreach my $foo (sort { $b cmp $a ...
+
+However this causes a problem with editors editors which cannot recognize
+comments or are not configured to do so because they cannot "bounce" around in
+the text correctly.  The B<-cscb> flag has been added to
+help them by appending appropriate balancing structure:
+
+  perltidy -csc -cscb
+  } ## end foreach my $foo (sort { $b cmp $a ... })
+
+The default is B<-cscb>.
 
 =item B<-csce=n>, or B<--closing-side-comment-else-flag=n> 
 
@@ -1015,6 +1041,24 @@ side comments.
 
 If B<n=1> is used, the results will be the same as B<n=2> whenever the
 resulting line length is less than the maximum allowed.
+=item B<-cscb>, or B<--closing-side-comments-balanced> 
+
+When using closing-side-comments, and the closing-side-comment-maximum-text
+limit is exceeded, then the comment text must be abbreviated.  
+It is terminated with three dots if the B<-cscb> flag is negated:
+
+  perltidy -csc -ncscb
+  } ## end foreach my $foo (sort { $b cmp $a ...
+
+This causes a problem with older editors which do not recognize comments
+because they cannot "bounce" around in the text correctly.  The B<-cscb>
+flag tries to help them by appending appropriate terminal balancing structures:
+
+  perltidy -csc -cscb
+  } ## end foreach my $foo (sort { $b cmp $a ... })
+
+The default is B<-cscb>.  
+
 
 =item B<-cscw>, or B<--closing-side-comment-warnings> 
 
@@ -1263,17 +1307,26 @@ ending marker for format skipping.  The default is equivalent to
 
 =head2 Line Break Control
 
+The parameters in this section control breaks after
+non-blank lines of code.  Blank lines are controlled
+separately by parameters in the section L<Blank Line
+Control>.
+
 =over 4
 
 =item B<-fnl>,  B<--freeze-newlines>
 
-If you do not want any changes to the line breaks in your script, set
+If you do not want any changes to the line breaks within
+lines of code in your script, set
 B<-fnl>, and they will remain fixed, and the rest of the commands in
 this section and sections 
 L<Controlling List Formatting>,
-L<Retaining or Ignoring Existing Line Breaks>, and
-L<Blank Line Control> will be ignored.  You may want to use B<-noll>
-with this.
+L<Retaining or Ignoring Existing Line Breaks>. 
+You may want to use B<-noll> with this.
+
+Note: If you also want to keep your blank lines exactly
+as they are, you can use the B<-fbl> flag which is described
+in the section L<Blank Line Control>.
 
 =item B<-ce>,   B<--cuddled-else>
 
@@ -1305,7 +1358,7 @@ Use the flag B<-bl> to place the opening brace on a new line:
       important_function();
   }
 
-This flag applies to all structural blocks, including sub's (unless
+This flag applies to all structural blocks, including named sub's (unless
 the B<-sbl> flag is set -- see next item).
 
 The default style, B<-nbl>, places an opening brace on the same line as
@@ -1316,7 +1369,7 @@ the keyword introducing it.  For example,
 =item B<-sbl>,    B<--opening-sub-brace-on-new-line>     
 
 The flag B<-sbl> can be used to override the value of B<-bl> for
-opening sub braces.  For example, 
+the opening braces of named sub's.  For example, 
 
  perltidy -sbl
 
@@ -1334,6 +1387,27 @@ produces this result:
 
 This flag is negated with B<-nsbl>.  If B<-sbl> is not specified,
 the value of B<-bl> is used.
+
+=item B<-asbl>,    B<--opening-anonymous-sub-brace-on-new-line>     
+
+The flag B<-asbl> is like the B<-sbl> flag except that it applies
+to anonymous sub's instead of named subs. For example
+
+ perltidy -asbl
+
+produces this result:
+
+ $a = sub
+ {
+     if ( !defined( $_[0] ) ) {
+         print("Hello, World\n");
+     }
+     else {
+         print( $_[0], "\n" );
+     }
+ };
+
+This flag is negated with B<-nasbl>, and the default is B<-nasbl>.
 
 =item B<-bli>,    B<--brace-left-and-indent>     
 
@@ -1937,9 +2011,16 @@ maximum is exceeed.
 
 Blank lines can improve the readability of a script if they are carefully
 placed.  Perltidy has several commands for controlling the insertion,
-retention, and removal of blank lines.
+retention, and removal of blank lines.  
 
 =over 4
+
+=item B<-fbl>,  B<--freeze-blank-lines>
+
+Set B<-fbl> if you want to the blank lines in your script to
+remain exactly as they are.  The rest of the parameters in
+this section may then be ignored.  (Note: setting the B<-fbl> flag
+is equivalent to setting B<-mbl=0> and B<-kbl=2>).
 
 =item B<-bbc>,  B<--blanks-before-comments>
 
@@ -1991,23 +2072,39 @@ a value of B<0> is equivalent to entering a very large number.
 
 =item B<-mbl=n> B<--maximum-consecutive-blank-lines=n>   
 
-This parameter specifies the maximum number of consecutive blank lines
-in the output script.  The default is n=1.  If the input file has more
-than n consecutive blank lines, the number will be reduced to n.
-(This obviously does not apply to pod sections, here-documents, and quotes).
+This parameter specifies the maximum number of consecutive
+blank lines which will be output within code sections of a
+script.  The default is n=1.  If the input file has more
+than n consecutive blank lines, the number will be reduced
+to n.  If B<n=0> then no blank lines will be output (unless
+all old blank lines are retained with the B<-kbl=2> flag of
+the next section).
+
+This flag obviously does not apply to pod sections,
+here-documents, and quotes.  
+
+=item B<-kbl=n>,  B<--keep-old-blank-lines=n>
+
+The B<-kbl=n> flag gives you control over how your existing blank lines are
+treated.  
+
+The possible values of B<n> are:
+
+ n=0 ignore all old blank lines
+ n=1 stable: keep old blanks, but limited by the value of the B<-mbl=n> flag
+ n=2 keep all old blank lines, regardless of the value of the B<-mbl=n> flag
+
+The default is B<n=1>.  
 
 =item B<-sob>,  B<--swallow-optional-blank-lines>
 
-All blank lines not required by the above flags, B<-bbb>, B<-bbs>, and B<-bbc>,
-will be deleted.  (But essential blank lines above pod documents will be
-retained).  This is NOT the default.
+This is equivalent to B<kbl=0> and is included for compatability with
+previous versions.
 
 =item B<-nsob>,  B<--noswallow-optional-blank-lines>
 
-Retain blank lines, including those which do not corresponding to flags
-B<-bbb>, B<-bbs>, and B<-bbc>.  This is the default.  The number of
-blanks retained is subject to the limit imposed by
-B<--maximum-consecutive-blank-lines>, however.
+This is equivalent to B<kbl=1> and is included for compatability with
+previous versions.
 
 =back
 
@@ -2097,11 +2194,28 @@ F</etc/perltidyrc>.  Note that these last two system-wide files do not
 have a leading dot.  Further system-dependent information will be found
 in the INSTALL file distributed with perltidy.
 
-This file is free format, and simply a list of parameters, just as they
-would be entered on a command line.  Any number of lines may be used,
-with any number of parameters per line, although it may be easiest to
-read with one parameter per line.  Blank lines are ignored, and text
-after a '#' is ignored to the end of a line.
+Under Windows, perltidy will also search for a configuration file named perltidy.ini since Windows does not allow files with a leading period (.).
+Use C<perltidy -dpro> to see the possbile locations for your system.
+An example might be F<C:\Documents and Settings\All Users\perltidy.ini>.
+
+Another option is the use of the PERLTIDY environment variable.
+The method for setting environment variables depends upon the version of
+Windows that you are using.  Instructions for Windows 95 and later versions can
+be found here:
+
+http://www.netmanage.com/000/20021101_005_tcm21-6336.pdf
+
+Under Windows NT / 2000 / XP the PERLTIDY environment variable can be placed in
+either the user section or the system section.  The later makes the
+configuration file common to all users on the machine.  Be sure to enter the
+full path of the configuration file in the value of the environment variable.
+Ex.  PERLTIDY=C:\Documents and Settings\perltidy.ini
+
+The configuation file is free format, and simply a list of parameters, just as
+they would be entered on a command line.  Any number of lines may be used, with
+any number of parameters per line, although it may be easiest to read with one
+parameter per line.  Blank lines are ignored, and text after a '#' is ignored
+to the end of a line.
 
 Here is an example of a F<.perltidyrc> file:
 
@@ -2678,7 +2792,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20071205.
+This man page documents perltidy version 20090616.
 
 =head1 CREDITS
 
@@ -2703,7 +2817,7 @@ see the CHANGES file.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2006 by Steve Hancock
+Copyright (c) 2000-2008 by Steve Hancock
 
 =head1 LICENSE
 

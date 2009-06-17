@@ -2,7 +2,7 @@
 #
 #    perltidy - a perl script indenter and formatter
 #
-#    Copyright (c) 2000-2007 by Steve Hancock
+#    Copyright (c) 2000-2009 by Steve Hancock
 #    Distributed under the GPL license agreement; see file COPYING
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -65,7 +65,7 @@ use IO::File;
 use File::Basename;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.73 2007/12/05 17:51:17 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2009/06/16 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -693,7 +693,7 @@ EOM
                         if ( $input_file =~ /^\'(.+)\'$/ ) { $input_file = $1 }
                         if ( $input_file =~ /^\"(.+)\"$/ ) { $input_file = $1 }
                         my $pattern = fileglob_to_re($input_file);
-                        eval "/$pattern/";
+                        ##eval "/$pattern/";
                         if ( !$@ && opendir( DIR, './' ) ) {
                             my @files =
                               grep { /$pattern/ && !-d $_ } readdir(DIR);
@@ -1307,6 +1307,7 @@ sub generate_options {
     $add_option->( 'closing-side-comment-prefix',       'cscp', '=s' );
     $add_option->( 'closing-side-comment-warnings',     'cscw', '!' );
     $add_option->( 'closing-side-comments',             'csc',  '!' );
+    $add_option->( 'closing-side-comments-balanced',    'cscb', '!' );
     $add_option->( 'format-skipping',                   'fs',   '!' );
     $add_option->( 'format-skipping-begin',             'fsb',  '=s' );
     $add_option->( 'format-skipping-end',               'fse',  '=s' );
@@ -1325,34 +1326,35 @@ sub generate_options {
     ########################################
     $category = 5;    # Linebreak controls
     ########################################
-    $add_option->( 'add-newlines',                        'anl',   '!' );
-    $add_option->( 'block-brace-vertical-tightness',      'bbvt',  '=i' );
-    $add_option->( 'block-brace-vertical-tightness-list', 'bbvtl', '=s' );
-    $add_option->( 'brace-vertical-tightness',            'bvt',   '=i' );
-    $add_option->( 'brace-vertical-tightness-closing',    'bvtc',  '=i' );
-    $add_option->( 'cuddled-else',                        'ce',    '!' );
-    $add_option->( 'delete-old-newlines',                 'dnl',   '!' );
-    $add_option->( 'opening-brace-always-on-right',       'bar',   '!' );
-    $add_option->( 'opening-brace-on-new-line',           'bl',    '!' );
-    $add_option->( 'opening-hash-brace-right',            'ohbr',  '!' );
-    $add_option->( 'opening-paren-right',                 'opr',   '!' );
-    $add_option->( 'opening-square-bracket-right',        'osbr',  '!' );
-    $add_option->( 'opening-sub-brace-on-new-line',       'sbl',   '!' );
-    $add_option->( 'paren-vertical-tightness',            'pvt',   '=i' );
-    $add_option->( 'paren-vertical-tightness-closing',    'pvtc',  '=i' );
-    $add_option->( 'stack-closing-hash-brace',            'schb',  '!' );
-    $add_option->( 'stack-closing-paren',                 'scp',   '!' );
-    $add_option->( 'stack-closing-square-bracket',        'scsb',  '!' );
-    $add_option->( 'stack-opening-hash-brace',            'sohb',  '!' );
-    $add_option->( 'stack-opening-paren',                 'sop',   '!' );
-    $add_option->( 'stack-opening-square-bracket',        'sosb',  '!' );
-    $add_option->( 'vertical-tightness',                  'vt',    '=i' );
-    $add_option->( 'vertical-tightness-closing',          'vtc',   '=i' );
-    $add_option->( 'want-break-after',                    'wba',   '=s' );
-    $add_option->( 'want-break-before',                   'wbb',   '=s' );
-    $add_option->( 'break-after-all-operators',           'baao',  '!' );
-    $add_option->( 'break-before-all-operators',          'bbao',  '!' );
-    $add_option->( 'keep-interior-semicolons',            'kis',   '!' );
+    $add_option->( 'add-newlines',                            'anl',   '!' );
+    $add_option->( 'block-brace-vertical-tightness',          'bbvt',  '=i' );
+    $add_option->( 'block-brace-vertical-tightness-list',     'bbvtl', '=s' );
+    $add_option->( 'brace-vertical-tightness',                'bvt',   '=i' );
+    $add_option->( 'brace-vertical-tightness-closing',        'bvtc',  '=i' );
+    $add_option->( 'cuddled-else',                            'ce',    '!' );
+    $add_option->( 'delete-old-newlines',                     'dnl',   '!' );
+    $add_option->( 'opening-brace-always-on-right',           'bar',   '!' );
+    $add_option->( 'opening-brace-on-new-line',               'bl',    '!' );
+    $add_option->( 'opening-hash-brace-right',                'ohbr',  '!' );
+    $add_option->( 'opening-paren-right',                     'opr',   '!' );
+    $add_option->( 'opening-square-bracket-right',            'osbr',  '!' );
+    $add_option->( 'opening-anonymous-sub-brace-on-new-line', 'asbl',  '!' );
+    $add_option->( 'opening-sub-brace-on-new-line',           'sbl',   '!' );
+    $add_option->( 'paren-vertical-tightness',                'pvt',   '=i' );
+    $add_option->( 'paren-vertical-tightness-closing',        'pvtc',  '=i' );
+    $add_option->( 'stack-closing-hash-brace',                'schb',  '!' );
+    $add_option->( 'stack-closing-paren',                     'scp',   '!' );
+    $add_option->( 'stack-closing-square-bracket',            'scsb',  '!' );
+    $add_option->( 'stack-opening-hash-brace',                'sohb',  '!' );
+    $add_option->( 'stack-opening-paren',                     'sop',   '!' );
+    $add_option->( 'stack-opening-square-bracket',            'sosb',  '!' );
+    $add_option->( 'vertical-tightness',                      'vt',    '=i' );
+    $add_option->( 'vertical-tightness-closing',              'vtc',   '=i' );
+    $add_option->( 'want-break-after',                        'wba',   '=s' );
+    $add_option->( 'want-break-before',                       'wbb',   '=s' );
+    $add_option->( 'break-after-all-operators',               'baao',  '!' );
+    $add_option->( 'break-before-all-operators',              'bbao',  '!' );
+    $add_option->( 'keep-interior-semicolons',                'kis',   '!' );
 
     ########################################
     $category = 6;    # Controlling list formatting
@@ -1377,7 +1379,7 @@ sub generate_options {
     $add_option->( 'blanks-before-subs',              'bbs', '!' );
     $add_option->( 'long-block-line-count',           'lbl', '=i' );
     $add_option->( 'maximum-consecutive-blank-lines', 'mbl', '=i' );
-    $add_option->( 'swallow-optional-blank-lines',    'sob', '!' );
+    $add_option->( 'keep-old-blank-lines',            'kbl', '=i' );
 
     ########################################
     $category = 9;    # Other controls
@@ -1508,6 +1510,7 @@ sub generate_options {
       closing-side-comment-interval=6
       closing-side-comment-maximum-text=20
       closing-side-comment-else-flag=0
+      closing-side-comments-balanced
       closing-paren-indentation=0
       closing-brace-indentation=0
       closing-square-bracket-indentation=0
@@ -1518,6 +1521,7 @@ sub generate_options {
       hanging-side-comments
       indent-block-comments
       indent-columns=4
+      keep-old-blank-lines=1
       long-block-line-count=8
       look-for-autoloader
       look-for-selfloader
@@ -1533,7 +1537,6 @@ sub generate_options {
       noquiet
       noshow-options
       nostatic-side-comments
-      noswallow-optional-blank-lines
       notabs
       nowarning-output
       outdent-labels
@@ -1569,10 +1572,13 @@ sub generate_options {
     #---------------------------------------------------------------
     %expansion = (
         %expansion,
-        'freeze-newlines'    => [qw(noadd-newlines nodelete-old-newlines)],
-        'fnl'                => [qw(freeze-newlines)],
-        'freeze-whitespace'  => [qw(noadd-whitespace nodelete-old-whitespace)],
-        'fws'                => [qw(freeze-whitespace)],
+        'freeze-newlines'   => [qw(noadd-newlines nodelete-old-newlines)],
+        'fnl'               => [qw(freeze-newlines)],
+        'freeze-whitespace' => [qw(noadd-whitespace nodelete-old-whitespace)],
+        'fws'               => [qw(freeze-whitespace)],
+        'freeze-blank-lines' =>
+          [qw(maximum-consecutive-blank-lines=0 keep-old-blank-lines=2)],
+        'fbl'                => [qw(freeze-blank-lines)],
         'indent-only'        => [qw(freeze-newlines freeze-whitespace)],
         'outdent-long-lines' => [qw(outdent-long-quotes outdent-long-comments)],
         'nooutdent-long-lines' =>
@@ -1596,6 +1602,11 @@ sub generate_options {
         'html'  => [qw(format=html)],
         'nhtml' => [qw(format=tidy)],
         'tidy'  => [qw(format=tidy)],
+
+        'swallow-optional-blank-lines'   => [qw(kbl=0)],
+        'noswallow-optional-blank-lines' => [qw(kbl=1)],
+        'sob'                            => [qw(kbl=0)],
+        'nsob'                           => [qw(kbl=1)],
 
         'break-after-comma-arrows'   => [qw(cab=0)],
         'nobreak-after-comma-arrows' => [qw(cab=1)],
@@ -1659,6 +1670,7 @@ sub generate_options {
         'mangle' => [
             qw(
               check-syntax
+              keep-old-blank-lines=0
               delete-old-newlines
               delete-old-whitespace
               delete-semicolons
@@ -2109,11 +2121,6 @@ EOM
           $rOpts->{'opening-brace-on-new-line'};
     }
 
-    # set shortcut flag if no blanks to be written
-    unless ( $rOpts->{'maximum-consecutive-blank-lines'} ) {
-        $rOpts->{'swallow-optional-blank-lines'} = 1;
-    }
-
     if ( $rOpts->{'entab-leading-whitespace'} ) {
         if ( $rOpts->{'entab-leading-whitespace'} < 0 ) {
             warn "-et=n must use a positive integer; ignoring -et\n";
@@ -2360,6 +2367,7 @@ sub look_for_Windows {
 sub find_config_file {
 
     # look for a .perltidyrc configuration file
+    # For Windows also look for a file named perltidy.ini
     my ( $is_Windows, $Windows_type, $rconfig_file_chatter,
         $rpending_complaint ) = @_;
 
@@ -2384,6 +2392,10 @@ sub find_config_file {
     # look in current directory first
     $config_file = ".perltidyrc";
     return $config_file if $exists_config_file->($config_file);
+    if ($is_Windows) {
+        $config_file = "perltidy.ini";
+        return $config_file if $exists_config_file->($config_file);
+    }
 
     # Default environment vars.
     my @envs = qw(PERLTIDY HOME);
@@ -2407,6 +2419,11 @@ sub find_config_file {
             # test ENV as directory:
             $config_file = catfile( $ENV{$var}, ".perltidyrc" );
             return $config_file if $exists_config_file->($config_file);
+
+            if ($is_Windows) {
+                $config_file = catfile( $ENV{$var}, "perltidy.ini" );
+                return $config_file if $exists_config_file->($config_file);
+            }
         }
         else {
             $$rconfig_file_chatter .= "\n";
@@ -2422,13 +2439,23 @@ sub find_config_file {
               Win_Config_Locs( $rpending_complaint, $Windows_type );
 
             # Check All Users directory, if there is one.
+            # i.e. C:\Documents and Settings\User\perltidy.ini
             if ($allusers) {
+
                 $config_file = catfile( $allusers, ".perltidyrc" );
+                return $config_file if $exists_config_file->($config_file);
+
+                $config_file = catfile( $allusers, "perltidy.ini" );
                 return $config_file if $exists_config_file->($config_file);
             }
 
             # Check system directory.
+            # retain old code in case someone has been able to create
+            # a file with a leading period.
             $config_file = catfile( $system, ".perltidyrc" );
+            return $config_file if $exists_config_file->($config_file);
+
+            $config_file = catfile( $system, "perltidy.ini" );
             return $config_file if $exists_config_file->($config_file);
         }
     }
@@ -2789,7 +2816,7 @@ sub show_version {
     print <<"EOM";
 This is perltidy, v$VERSION 
 
-Copyright 2000-2007, Steve Hancock
+Copyright 2000-2009, Steve Hancock
 
 Perltidy is free software and may be copied under the terms of the GNU
 General Public License, which is included in the distribution files.
@@ -2883,10 +2910,10 @@ Line Break Control
  -bbs    add blank line before subs and packages
  -bbc    add blank line before block comments
  -bbb    add blank line between major blocks
- -sob    swallow optional blank lines
+ -kbl=n  keep old blank lines? 0=no, 1=some, 2=all
+ -mbl=n  maximum consecutive blank lines to output (default=1)
  -ce     cuddled else; use this style: '} else {'
  -dnl    delete old newlines (default)
- -mbl=n  maximum consecutive blank lines (default=1)
  -l=n    maximum line length;  default n=80
  -bl     opening brace on new line 
  -sbl    opening sub brace on new line.  value of -bl is used if not given.
@@ -5588,7 +5615,7 @@ use vars qw{
   $rOpts_maximum_fields_per_table
   $rOpts_maximum_line_length
   $rOpts_short_concatenation_item_length
-  $rOpts_swallow_optional_blank_lines
+  $rOpts_keep_old_blank_lines
   $rOpts_ignore_old_breakpoints
   $rOpts_format_skipping
   $rOpts_space_function_paren
@@ -6578,7 +6605,7 @@ sub check_for_long_gnu_style_lines {
     my $spaces_needed =
       $gnu_position_predictor - $rOpts_maximum_line_length + 2;
 
-    return if ( $spaces_needed < 0 );
+    return if ( $spaces_needed <= 0 );
 
     # We are over the limit, so try to remove a requested number of
     # spaces from leading whitespace.  We are only allowed to remove
@@ -6627,7 +6654,7 @@ sub check_for_long_gnu_style_lines {
         for ( ; $i <= $max_gnu_item_index ; $i++ ) {
 
             my $old_spaces = $gnu_item_list[$i]->get_SPACES();
-            if ( $old_spaces > $deleted_spaces ) {
+            if ( $old_spaces >= $deleted_spaces ) {
                 $gnu_item_list[$i]->decrease_SPACES($deleted_spaces);
             }
 
@@ -7175,8 +7202,7 @@ EOM
     $rOpts_maximum_line_length      = $rOpts->{'maximum-line-length'};
     $rOpts_short_concatenation_item_length =
       $rOpts->{'short-concatenation-item-length'};
-    $rOpts_swallow_optional_blank_lines =
-      $rOpts->{'swallow-optional-blank-lines'};
+    $rOpts_keep_old_blank_lines     = $rOpts->{'keep-old-blank-lines'};
     $rOpts_ignore_old_breakpoints   = $rOpts->{'ignore-old-breakpoints'};
     $rOpts_format_skipping          = $rOpts->{'format-skipping'};
     $rOpts_space_function_paren     = $rOpts->{'space-function-paren'};
@@ -8374,12 +8400,13 @@ sub set_white_space_flag {
         # Handle a blank line..
         if ( $jmax < 0 ) {
 
-            # For the 'swallow-optional-blank-lines' option, we delete all
+            # If keep-old-blank-lines is zero, we delete all
             # old blank lines and let the blank line rules generate any
             # needed blanks.
-            if ( !$rOpts_swallow_optional_blank_lines ) {
+            if ($rOpts_keep_old_blank_lines) {
                 flush();
-                $file_writer_object->write_blank_code_line();
+                $file_writer_object->write_blank_code_line(
+                    $rOpts_keep_old_blank_lines == 2 );
                 $last_line_leading_type = 'b';
             }
             $last_line_had_side_comment = 0;
@@ -8517,7 +8544,7 @@ sub set_white_space_flag {
         #       /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/
         #   Examples:
         #     *VERSION = \'1.01';
-        #     ( $VERSION ) = '$Revision: 1.73 $ ' =~ /\$Revision:\s+([^\s]+)/;
+        #     ( $VERSION ) = '$Revision: 1.74 $ ' =~ /\$Revision:\s+([^\s]+)/;
         #   We will pass such a line straight through without breaking
         #   it unless -npvl is used
 
@@ -8805,12 +8832,12 @@ sub set_white_space_flag {
                   $block_type !~ /^sub/
                   ? $rOpts->{'opening-brace-on-new-line'}
 
-                  # use -sbl flag unless this is an anonymous sub block
+                  # use -sbl flag for a named sub block
                   : $block_type !~ /^sub\W*$/
                   ? $rOpts->{'opening-sub-brace-on-new-line'}
 
-                  # do not break for anonymous subs
-                  : 0;
+                  # use -asbl flag for an anonymous sub block
+                  : $rOpts->{'opening-anonymous-sub-brace-on-new-line'};
 
                 # Break before an opening '{' ...
                 if (
@@ -8894,7 +8921,10 @@ sub set_white_space_flag {
                         # that this is a block and not an anonomyous
                         # hash (blktype.t, blktype1.t)
                         && ( $block_type !~ /^[\{\};]$/ )
-
+                        
+                        # patch: and do not add semi-colons for recently
+                        # added block types (see tmp/semicolon.t)
+                        && ( $block_type !~ /^(switch|case|given|when|default)$/)
                         # it seems best not to add semicolons in these
                         # special block types: sort|map|grep
                         && ( !$is_sort_map_grep{$block_type} )
@@ -9667,6 +9697,104 @@ sub want_blank_line {
 sub write_unindented_line {
     flush();
     $file_writer_object->write_line( $_[0] );
+}
+
+sub undo_ci {
+
+    # Undo continuation indentation in certain sequences
+    # For example, we can undo continuation indation in sort/map/grep chains
+    #    my $dat1 = pack( "n*",
+    #        map { $_, $lookup->{$_} }
+    #          sort { $a <=> $b }
+    #          grep { $lookup->{$_} ne $default } keys %$lookup );
+    # To align the map/sort/grep keywords like this:
+    #    my $dat1 = pack( "n*",
+    #        map { $_, $lookup->{$_} }
+    #        sort { $a <=> $b }
+    #        grep { $lookup->{$_} ne $default } keys %$lookup );
+    my ( $ri_first, $ri_last ) = @_;
+    my ( $line_1, $line_2, $lev_last );
+    my $this_line_is_semicolon_terminated;
+    my $max_line = @$ri_first - 1;
+
+    # looking at each line of this batch..
+    # We are looking at leading tokens and looking for a sequence
+    # all at the same level and higher level than enclosing lines.
+    foreach my $line ( 0 .. $max_line ) {
+
+        my $ibeg = $$ri_first[$line];
+        my $lev  = $levels_to_go[$ibeg];
+        if ( $line > 0 ) {
+
+            # if we have started a chain..
+            if ($line_1) {
+
+                # see if it continues..
+                if ( $lev == $lev_last ) {
+                    if (   $types_to_go[$ibeg] eq 'k'
+                        && $is_sort_map_grep{ $tokens_to_go[$ibeg] } )
+                    {
+
+                        # chain continues...
+                        # check for chain ending at end of a a statement
+                        if ( $line == $max_line ) {
+
+                            # see of this line ends a statement
+                            my $iend = $$ri_last[$line];
+                            $this_line_is_semicolon_terminated =
+                              $types_to_go[$iend] eq ';'
+
+                              # with possible side comment
+                              || ( $types_to_go[$iend] eq '#'
+                                && $iend - $ibeg >= 2
+                                && $types_to_go[ $iend - 2 ] eq ';'
+                                && $types_to_go[ $iend - 1 ] eq 'b' );
+                        }
+                        $line_2 = $line if ($this_line_is_semicolon_terminated);
+                    }
+                    else {
+
+                        # kill chain
+                        $line_1 = undef;
+                    }
+                }
+                elsif ( $lev < $lev_last ) {
+
+                    # chain ends with previous line
+                    $line_2 = $line - 1;
+                }
+                elsif ( $lev > $lev_last ) {
+
+                    # kill chain
+                    $line_1 = undef;
+                }
+
+                # undo the continuation indentation if a chain ends
+                if ( defined($line_2) && defined($line_1) ) {
+                    my $continuation_line_count = $line_2 - $line_1 + 1;
+                    @ci_levels_to_go[ @$ri_first[ $line_1 .. $line_2 ] ] =
+                      (0) x ($continuation_line_count);
+                    @leading_spaces_to_go[ @$ri_first[ $line_1 .. $line_2 ] ] =
+                      @reduced_spaces_to_go[ @$ri_first[ $line_1 .. $line_2 ] ];
+                    $line_1 = undef;
+                }
+            }
+
+            # not in a chain yet..
+            else {
+
+                # look for start of a new sort/map/grep chain
+                if ( $lev > $lev_last ) {
+                    if (   $types_to_go[$ibeg] eq 'k'
+                        && $is_sort_map_grep{ $tokens_to_go[$ibeg] } )
+                    {
+                        $line_1 = $line;
+                    }
+                }
+            }
+        }
+        $lev_last = $lev;
+    }
 }
 
 sub undo_lp_ci {
@@ -10691,6 +10819,64 @@ sub make_else_csc_text {
     return $csc_text;
 }
 
+{    # sub balance_csc_text
+
+    my %matching_char;
+
+    BEGIN {
+        %matching_char = (
+            '{' => '}',
+            '(' => ')',
+            '[' => ']',
+            '}' => '{',
+            ')' => '(',
+            ']' => '[',
+        );
+    }
+
+    sub balance_csc_text {
+
+        # Append characters to balance a closing side comment so that editors
+        # such as vim can correctly jump through code.
+        # Simple Example:
+        #  input  = ## end foreach my $foo ( sort { $b  ...
+        #  output = ## end foreach my $foo ( sort { $b  ...})
+
+        # NOTE: This routine does not currently filter out structures within
+        # quoted text because the bounce algorithims in text editors do not
+        # necessarily do this either (a version of vim was checked and
+        # did not do this).
+
+        # Some complex examples which will cause trouble for some editors:
+        #  while ( $mask_string =~ /\{[^{]*?\}/g ) {
+        #  if ( $mask_str =~ /\}\s*els[^\{\}]+\{$/ ) {
+        #  if ( $1 eq '{' ) {
+        # test file test1/braces.pl has many such examples.
+
+        my ($csc) = @_;
+
+        # loop to examine characters one-by-one, RIGHT to LEFT and
+        # build a balancing ending, LEFT to RIGHT.
+        for ( my $pos = length($csc) - 1 ; $pos >= 0 ; $pos-- ) {
+
+            my $char = substr( $csc, $pos, 1 );
+
+            # ignore everything except structural characters
+            next unless ( $matching_char{$char} );
+
+            # pop most recently appended character
+            my $top = chop($csc);
+
+            # push it back plus the mate to the newest character
+            # unless they balance each other.
+            $csc = $csc . $top . $matching_char{$char} unless $top eq $char;
+        }
+
+        # return the balanced string
+        return $csc;
+    }
+}
+
 sub add_closing_side_comment {
 
     # add closing side comments after closing block braces if -csc used
@@ -10763,6 +10949,10 @@ sub add_closing_side_comment {
         if ( $i_block_leading_text == $i_terminal ) {
             $token .= $block_leading_text;
         }
+
+        $token = balance_csc_text($token)
+          if $rOpts->{'closing-side-comments-balanced'};
+
         $token =~ s/\s*$//;    # trim any trailing whitespace
 
         # handle case of existing closing side comment
@@ -10772,11 +10962,13 @@ sub add_closing_side_comment {
             if ( $rOpts->{'closing-side-comment-warnings'} ) {
                 my $old_csc = $tokens_to_go[$max_index_to_go];
                 my $new_csc = $token;
-                $new_csc =~ s/(\.\.\.)\s*$//;    # trim trailing '...'
-                my $new_trailing_dots = $1;
-                $old_csc =~ s/\.\.\.\s*$//;
                 $new_csc =~ s/\s+//g;            # trim all whitespace
-                $old_csc =~ s/\s+//g;
+                $old_csc =~ s/\s+//g;            # trim all whitespace
+                $new_csc =~ s/[\]\)\}\s]*$//;    # trim trailing structures
+                $old_csc =~ s/[\]\)\}\s]*$//;    # trim trailing structures
+                $new_csc =~ s/(\.\.\.)$//;       # trim trailing '...'
+                my $new_trailing_dots = $1;
+                $old_csc =~ s/(\.\.\.)\s*$//;    # trim trailing '...'
 
                 # Patch to handle multiple closing side comments at
                 # else and elsif's.  These have become too complicated
@@ -10920,6 +11112,8 @@ sub send_lines_to_vertical_aligner {
     if ($must_flush) {
         Perl::Tidy::VerticalAligner::flush();
     }
+
+    undo_ci( $ri_first, $ri_last );
 
     set_logical_padding( $ri_first, $ri_last );
 
@@ -11601,6 +11795,28 @@ sub lookup_opening_indentation {
                   ( ( $next_type eq 'b' ) ? $ibeg + 2 : $ibeg + 1 );
                 if (   $i_next_nonblank <= $max_index_to_go
                     && $levels_to_go[$i_next_nonblank] < $lev )
+                {
+                    $adjust_indentation = 1;
+                }
+            }
+
+            # YVES patch 1 of 2:
+            # Undo ci of line with leading closing eval brace,
+            # but not beyond the indention of the line with
+            # the opening brace.
+            if (   $block_type_to_go[$ibeg] eq 'eval'
+                && !$rOpts->{'line-up-parentheses'}
+                && !$rOpts->{'indent-closing-brace'} )
+            {
+                (
+                    $opening_indentation, $opening_offset,
+                    $is_leading,          $opening_exists
+                  )
+                  = get_opening_indentation( $ibeg, $ri_first, $ri_last,
+                    $rindentation_list );
+                my $indentation = $leading_spaces_to_go[$ibeg];
+                if ( defined($opening_indentation)
+                    && $indentation > $opening_indentation )
                 {
                     $adjust_indentation = 1;
                 }
@@ -15653,6 +15869,47 @@ sub undo_forced_breakpoint_stack {
                       && ( $nesting_depth_to_go[$iend_1] ==
                         $nesting_depth_to_go[$iend_2] + 1 );
 
+                    # YVES patch 2 of 2:
+                    # Allow cuddled eval chains, like this:
+                    #   eval {
+                    #       #STUFF;
+                    #       1; # return true
+                    #   } or do {
+                    #       #handle error
+                    #   };
+                    # This patch works together with a patch in
+                    # setting adjusted indentation (where the closing eval
+                    # brace is outdented if possible).
+                    # The problem is that an 'eval' block has continuation
+                    # indentation and it looks better to undo it in some
+                    # cases.  If we do not use this patch we would get:
+                    #   eval {
+                    #       #STUFF;
+                    #       1; # return true
+                    #       }
+                    #       or do {
+                    #       #handle error
+                    #     };
+                    # The alternative, for uncuddled style, is to create
+                    # a patch in set_adjusted_indentation which undoes
+                    # the indentation of a leading line like 'or do {'.
+                    # This doesn't work well with -icb through
+                    if (
+                           $block_type_to_go[$iend_1] eq 'eval'
+                        && !$rOpts->{'line-up-parentheses'}
+                        && !$rOpts->{'indent-closing-brace'}
+                        && $tokens_to_go[$iend_2] eq '{'
+                        && (
+                            ( $types_to_go[$ibeg_2] =~ /^(|\&\&|\|\|)$/ )
+                            || (   $types_to_go[$ibeg_2] eq 'k'
+                                && $is_and_or{ $tokens_to_go[$ibeg_2] } )
+                            || $is_if_unless{ $tokens_to_go[$ibeg_2] }
+                        )
+                      )
+                    {
+                        $previous_outdentable_closing_paren ||= 1;
+                    }
+
                     next
                       unless (
                         $previous_outdentable_closing_paren
@@ -15660,6 +15917,14 @@ sub undo_forced_breakpoint_stack {
                         # handle '.' and '?' specially below
                         || ( $types_to_go[$ibeg_2] =~ /^[\.\?]$/ )
                       );
+                }
+
+                # YVES
+                # honor breaks at opening brace
+                # Added to prevent recombining something like this:
+                #  } || eval { package main;
+                elsif ( $types_to_go[$iend_1] eq '{' ) {
+                    next if $forced_breakpoint_to_go[$iend_1];
                 }
 
                 # do not recombine lines with ending &&, ||,
@@ -16576,7 +16841,7 @@ sub in_same_container {
     # See test file 'infinite_loop.txt'
     # TODO: replace this loop with a data structure
     ###########################################################
-    return if ( $i2-$i1 > 200 );
+    return if ( $i2 - $i1 > 200 );
 
     for ( my $i = $i1 + 1 ; $i < $i2 ; $i++ ) {
         next   if ( $nesting_depth_to_go[$i] > $depth );
@@ -20179,10 +20444,12 @@ sub want_blank_line {
 }
 
 sub write_blank_code_line {
-    my $self  = shift;
-    my $rOpts = $self->{_rOpts};
+    my $self   = shift;
+    my $forced = shift;
+    my $rOpts  = $self->{_rOpts};
     return
-      if ( $self->{_consecutive_blank_lines} >=
+      if (!$forced
+        && $self->{_consecutive_blank_lines} >=
         $rOpts->{'maximum-consecutive-blank-lines'} );
     $self->{_consecutive_blank_lines}++;
     $self->{_consecutive_nonblank_lines} = 0;
@@ -22462,6 +22729,12 @@ sub prepare_for_a_new_file {
                   find_angle_operator_termination( $input_line, $i, $rtoken_map,
                     $expecting, $max_token_index );
 
+                if ( $type eq '<' && $expecting == TERM ) {
+                    error_if_expecting_TERM();
+                    interrupt_logfile();
+                    warning("Unterminated <> operator?\n");
+                    resume_logfile();
+                }
             }
             else {
             }
@@ -22789,7 +23062,7 @@ sub prepare_for_a_new_file {
 
     # These block types terminate statements and do not need a trailing
     # semicolon
-    # patched for SWITCH/CASE:
+    # patched for SWITCH/CASE/
     my %is_zero_continuation_block_type;
     @_ = qw( } { BEGIN END CHECK INIT AUTOLOAD DESTROY UNITCHECK continue ;
       if elsif else unless while until for foreach switch case given when);
@@ -24734,7 +25007,20 @@ sub code_block_type {
 # it follows any of these:
 # /^(BEGIN|END|CHECK|INIT|AUTOLOAD|DESTROY|UNITCHECK|continue|if|elsif|else|unless|do|while|until|eval|for|foreach|map|grep|sort)$/
     elsif ( $is_code_block_token{$last_nonblank_token} ) {
-        return $last_nonblank_token;
+
+        # Bug Patch: Note that the opening brace after the 'if' in the following
+        # snippet is an anonymous hash ref and not a code block!
+        #   print 'hi' if { x => 1, }->{x};
+        # We can identify this situation because the last nonblank type
+        # will be a keyword (instead of a closing peren)
+        if (   $last_nonblank_token =~ /^(if|unless)$/
+            && $last_nonblank_type eq 'k' )
+        {
+            return "";
+        }
+        else {
+            return $last_nonblank_token;
+        }
     }
 
     # or a sub definition
@@ -28251,7 +28537,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20071205.
+This man page documents Perl::Tidy version 20090616.
 
 =head1 AUTHOR
 
