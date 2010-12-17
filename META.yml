@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Perl-Tidy
-version:             20090616
+version:             20101217
 abstract:            indent and reformat perl scripts
 license:             ~
 author:              

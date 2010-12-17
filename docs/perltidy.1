@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2009-06-16" "perl v5.10.0" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2010-12-13" "perl v5.10.0" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -429,6 +429,11 @@ name of .perltidyrc.  There must not be a space on either side of the
 .Sp
 would cause file \fItestcfg\fR to be used instead of the 
 default \fI.perltidyrc\fR.
+.Sp
+A pathname begins with three dots, e.g. \*(L".../.perltidyrc\*(R", indicates that
+the file should be searched for starting in the current directory and
+working upwards. This makes it easier to have multiple projects each with
+their own .perltidyrc in their root directories.
 .IP "\fB\-opt\fR,   \fB\-\-show\-options\fR" 4
 .IX Item "-opt,   --show-options"
 Write a list of all options used to the \fI.LOG\fR file.  
@@ -443,6 +448,14 @@ as non-text, and this flag forces perltidy to process them.
 .IX Header "FORMATTING OPTIONS"
 .SS "Basic Options"
 .IX Subsection "Basic Options"
+.IP "\fB\-\-notidy\fR" 4
+.IX Item "--notidy"
+This flag disables all formatting and causes the input to be copied unchanged
+to the output except for possible changes in line ending characters and any
+pre\- and post-filters.  This can be useful in conjunction with a hierarchical
+set of \fI.perltidyrc\fR files to avoid unwanted code tidying.  See also
+\&\*(L"Skipping Selected Sections of Code\*(R" for a way to avoid tidying specific
+sections of code.
 .IP "\fB\-l=n\fR, \fB\-\-maximum\-line\-length=n\fR" 4
 .IX Item "-l=n, --maximum-line-length=n"
 The default maximum line length is n=80 characters.  Perltidy will try
@@ -542,6 +555,16 @@ endings as the input file, if possible.  It should work for
 input comes from a filename (rather than stdin, for example).  If
 perltidy has trouble determining the input file line ending, it will
 revert to the default behavior of using the line ending of the host system.
+.IP "\fB\-it=n\fR,   \fB\-\-iterations=n\fR" 4
+.IX Item "-it=n,   --iterations=n"
+This flag causes perltidy to do \fBn\fR complete iterations.  The reason for this
+flag is that code beautification is a somewhat iterative process and in some
+cases the output from perltidy can be different if it is applied a second time.
+For most purposes the default of \fBn=1\fR should be satisfactory.  However \fBn=2\fR
+can be useful when a major style change is being made, or when code is being
+beautified on check-in to a source code control system.  The run time will be
+approximately proportional to \fBn\fR, and it should seldom be necessary to use a
+value greater than \fBn=2\fR.  This flag has no effect when perltidy is used to generate html.
 .SS "Code Indentation Control"
 .IX Subsection "Code Indentation Control"
 .IP "\fB\-ci=n\fR, \fB\-\-continuation\-indentation=n\fR" 4
@@ -2879,7 +2902,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20090616.
+This man page documents perltidy version 20101217.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with
@@ -2903,7 +2926,7 @@ see the \s-1CHANGES\s0 file.
 .Ve
 .SH "COPYRIGHT"
 .IX Header "COPYRIGHT"
-Copyright (c) 2000\-2008 by Steve Hancock
+Copyright (c) 2000\-2010 by Steve Hancock
 .SH "LICENSE"
 .IX Header "LICENSE"
 This package is free software; you can redistribute it and/or modify it

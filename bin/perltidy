@@ -303,6 +303,11 @@ name of .perltidyrc.  There must not be a space on either side of the
 would cause file F<testcfg> to be used instead of the 
 default F<.perltidyrc>.
 
+A pathname begins with three dots, e.g. ".../.perltidyrc", indicates that
+the file should be searched for starting in the current directory and
+working upwards. This makes it easier to have multiple projects each with
+their own .perltidyrc in their root directories.
+
 =item B<-opt>,   B<--show-options>      
 
 Write a list of all options used to the F<.LOG> file.  
@@ -322,6 +327,15 @@ as non-text, and this flag forces perltidy to process them.
 =head2 Basic Options
 
 =over 4
+
+=item B<--notidy>
+
+This flag disables all formatting and causes the input to be copied unchanged
+to the output except for possible changes in line ending characters and any
+pre- and post-filters.  This can be useful in conjunction with a hierarchical
+set of F<.perltidyrc> files to avoid unwanted code tidying.  See also
+L<Skipping Selected Sections of Code> for a way to avoid tidying specific
+sections of code.
 
 =item B<-l=n>, B<--maximum-line-length=n>
 
@@ -431,6 +445,17 @@ B<dos>, B<unix>, and B<mac> line endings.  It will only work if perltidy
 input comes from a filename (rather than stdin, for example).  If
 perltidy has trouble determining the input file line ending, it will
 revert to the default behavior of using the line ending of the host system.
+
+=item B<-it=n>,   B<--iterations=n>
+
+This flag causes perltidy to do B<n> complete iterations.  The reason for this
+flag is that code beautification is a somewhat iterative process and in some
+cases the output from perltidy can be different if it is applied a second time.
+For most purposes the default of B<n=1> should be satisfactory.  However B<n=2>
+can be useful when a major style change is being made, or when code is being
+beautified on check-in to a source code control system.  The run time will be
+approximately proportional to B<n>, and it should seldom be necessary to use a
+value greater than B<n=2>.  This flag has no effect when perltidy is used to generate html.
 
 =back
 
@@ -2792,7 +2817,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20090616.
+This man page documents perltidy version 20101217.
 
 =head1 CREDITS
 
@@ -2817,7 +2842,7 @@ see the CHANGES file.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2008 by Steve Hancock
+Copyright (c) 2000-2010 by Steve Hancock
 
 =head1 LICENSE
 

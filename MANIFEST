@@ -31,6 +31,8 @@ examples/perlxmltok.pl
 examples/pt.bat
 examples/testfa.t
 examples/testff.t
+examples/filter_example.pl
+examples/filter_example.in
 lib/Perl/Tidy.pm
 pm2pl
 t/test.t

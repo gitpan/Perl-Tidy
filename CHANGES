@@ -1,4 +1,53 @@
 Perltidy Change Log
+  2010 12 17
+     - added new flag -it=n or --iterations=n
+       This flag causes perltidy to do n complete iterations.  
+       For most purposes the default of n=1 should be satisfactory.  However n=2
+       can be useful when a major style change is being made, or when code is being
+       beautified on check-in to a source code control system.  The run time will be
+       approximately proportional to n, and it should seldom be necessary to use a
+       value greater than n=2.  Thanks to Jonathan Swartz
+
+     - A configuration file pathname begins with three dots, e.g.
+       ".../.perltidyrc", indicates that the file should be searched for starting
+       in the current directory and working upwards. This makes it easier to have
+       multiple projects each with their own .perltidyrc in their root directories.
+       Thanks to Jonathan Swartz for this patch.
+
+     - Added flag --notidy which disables all formatting and causes the input to be
+       copied unchanged.  This can be useful in conjunction with hierarchical
+       F<.perltidyrc> files to prevent unwanted tidying.
+       Thanks to Jonathan Swartz for this patch.
+
+     - Added prefilters and postfilters in the call to the Tidy.pm module.
+       Prefilters and postfilters. The prefilter is a code reference that 
+       will be applied to the source before tidying, and the postfilter 
+       is a code reference to the result before outputting.  
+
+       Thanks to Jonathan Swartz for this patch.  He writes:
+       This is useful for all manner of customizations. For example, I use
+       it to convert the 'method' keyword to 'sub' so that perltidy will work for
+       Method::Signature::Simple code:
+
+       Perl::Tidy::perltidy(
+          prefilter => sub { $_ = $_[0]; s/^method (.*)/sub $1 \#__METHOD/gm; return $_ },
+          postfilter => sub { $_ = $_[0]; s/^sub (.*?)\s* \#__METHOD/method $1/gm; return $_ }
+       );
+
+     - The starting indentation level of sections of code entabbed with -et=n
+       is correctly guessed if it was also produced with the same -et=n flag.  This
+       keeps the indentation stable on repeated formatting passes within an editor.
+       Thanks to Sam Kington and Glenn.
+
+     - Functions with prototype '&' had a space between the function and opening
+       peren.  This space now only occurs if the flag --space-function-paren (-sfp)
+       is set.  Thanks to Zrajm Akfohg.
+
+     - Patch to never put spaces around a bare word in braces beginning with ^ as in:
+         my $before = ${^PREMATCH};
+       even if requested with the -bt=0 flag because any spaces cause a syntax error in perl.
+       Thanks to Fabrice Dulanoy.
+
   2009 06 16
      - Allow configuration file to be 'perltidy.ini' for Windows systems.
        i.e. C:\Documents and Settings\User\perltidy.ini

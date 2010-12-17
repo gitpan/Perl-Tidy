@@ -1,3 +1,4 @@
+#
 ############################################################
 #
 #    perltidy - a perl script indenter and formatter
@@ -27,7 +28,7 @@
 #
 #      perltidy Tidy.pm
 #
-#    Code Contributions:
+#    Code Contributions: See ChangeLog.html for a complete history.
 #      Michael Cartmell supplied code for adaptation to VMS and helped with
 #        v-strings.
 #      Hugh S. Myers supplied sub streamhandle and the supporting code to
@@ -37,6 +38,15 @@
 #      Sebastien Aperghis-Tramoni supplied a patch for the defined or operator.
 #      Dan Tyrell contributed a patch for binary I/O.
 #      Ueli Hugenschmidt contributed a patch for -fpsc
+#      Sam Kington supplied a patch to identify the initial indentation of
+#      entabbed code.
+#      jonathan swartz supplied patches for:
+#      * .../ pattern, which looks upwards from directory
+#      * --notidy, to be used in directories where we want to avoid
+#        accidentally tidying
+#      * prefilter and postfilter
+#      * iterations option
+#
 #      Many others have supplied key ideas, suggestions, and bug reports;
 #        see the CHANGES file.
 #
@@ -61,11 +71,12 @@ use vars qw{
 @ISA    = qw( Exporter );
 @EXPORT = qw( &perltidy );
 
+use Cwd;
 use IO::File;
 use File::Basename;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2009/06/16 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2010/12/17 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -335,6 +346,8 @@ sub make_temporary_filename {
             dump_options_category => undef,
             dump_options_range    => undef,
             dump_abbreviations    => undef,
+            prefilter             => undef,
+            postfilter            => undef,
         );
 
         # don't overwrite callers ARGV
@@ -383,6 +396,8 @@ EOM
         my $source_stream      = $input_hash{'source'};
         my $stderr_stream      = $input_hash{'stderr'};
         my $user_formatter     = $input_hash{'formatter'};
+        my $prefilter          = $input_hash{'prefilter'};
+        my $postfilter         = $input_hash{'postfilter'};
 
         # various dump parameters
         my $dump_options_type     = $input_hash{'dump_options_type'};
@@ -769,6 +784,20 @@ EOM
                 $rpending_logfile_message );
             next unless ($source_object);
 
+            # Prefilters and postfilters: The prefilter is a code reference
+            # that will be applied to the source before tidying, and the
+            # postfilter is a code reference to the result before outputting.
+            if ($prefilter) {
+                my $buf = '';
+                while ( my $line = $source_object->get_line() ) {
+                    $buf .= $line;
+                }
+                $buf = $prefilter->($buf);
+
+                $source_object = Perl::Tidy::LineSource->new( \$buf, $rOpts,
+                    $rpending_logfile_message );
+            }
+
             # register this file name with the Diagnostics package
             $diagnostics_object->set_input_file($input_file)
               if $diagnostics_object;
@@ -863,9 +892,19 @@ EOM
             if   ( defined($line_separator) ) { $binmode        = 1 }
             else                              { $line_separator = "\n" }
 
-            my $sink_object =
-              Perl::Tidy::LineSink->new( $output_file, $tee_file,
-                $line_separator, $rOpts, $rpending_logfile_message, $binmode );
+            my ( $sink_object, $postfilter_buffer );
+            if ($postfilter) {
+                $sink_object =
+                  Perl::Tidy::LineSink->new( \$postfilter_buffer, $tee_file,
+                    $line_separator, $rOpts, $rpending_logfile_message,
+                    $binmode );
+            }
+            else {
+                $sink_object =
+                  Perl::Tidy::LineSink->new( $output_file, $tee_file,
+                    $line_separator, $rOpts, $rpending_logfile_message,
+                    $binmode );
+            }
 
             #---------------------------------------------------------------
             # initialize the error logger
@@ -898,65 +937,106 @@ EOM
                   Perl::Tidy::Debugger->new( $fileroot . $dot . "DEBUG" );
             }
 
-            #---------------------------------------------------------------
-            # create a formatter for this file : html writer or pretty printer
-            #---------------------------------------------------------------
+            # loop over iterations
+            my $max_iterations    = $rOpts->{'iterations'};
+            my $sink_object_final = $sink_object;
+            for ( my $iter = 1 ; $iter <= $max_iterations ; $iter++ ) {
+                my $temp_buffer;
 
-            # we have to delete any old formatter because, for safety,
-            # the formatter will check to see that there is only one.
-            $formatter = undef;
+                # local copies of some debugging objects which get deleted
+                # after first iteration, but will reappear after this loop
+                my $debugger_object    = $debugger_object;
+                my $logger_object      = $logger_object;
+                my $diagnostics_object = $diagnostics_object;
 
-            if ($user_formatter) {
-                $formatter = $user_formatter;
-            }
-            elsif ( $rOpts->{'format'} eq 'html' ) {
-                $formatter =
-                  Perl::Tidy::HtmlWriter->new( $fileroot, $output_file,
-                    $actual_output_extension, $html_toc_extension,
-                    $html_src_extension );
-            }
-            elsif ( $rOpts->{'format'} eq 'tidy' ) {
-                $formatter = Perl::Tidy::Formatter->new(
+                # output to temp buffer until last iteration
+                if ( $iter < $max_iterations ) {
+                    $sink_object =
+                      Perl::Tidy::LineSink->new( \$temp_buffer, $tee_file,
+                        $line_separator, $rOpts, $rpending_logfile_message,
+                        $binmode );
+                }
+                else {
+                    $sink_object = $sink_object_final;
+
+                    # terminate some debugging output after first pass
+                    # to avoid needless output.
+                    $debugger_object    = undef;
+                    $logger_object      = undef;
+                    $diagnostics_object = undef;
+                }
+
+              #---------------------------------------------------------------
+              # create a formatter for this file : html writer or pretty printer
+              #---------------------------------------------------------------
+
+                # we have to delete any old formatter because, for safety,
+                # the formatter will check to see that there is only one.
+                $formatter = undef;
+
+                if ($user_formatter) {
+                    $formatter = $user_formatter;
+                }
+                elsif ( $rOpts->{'format'} eq 'html' ) {
+                    $formatter =
+                      Perl::Tidy::HtmlWriter->new( $fileroot, $output_file,
+                        $actual_output_extension, $html_toc_extension,
+                        $html_src_extension );
+                }
+                elsif ( $rOpts->{'format'} eq 'tidy' ) {
+                    $formatter = Perl::Tidy::Formatter->new(
+                        logger_object      => $logger_object,
+                        diagnostics_object => $diagnostics_object,
+                        sink_object        => $sink_object,
+                    );
+                }
+                else {
+                    die "I don't know how to do -format=$rOpts->{'format'}\n";
+                }
+
+                unless ($formatter) {
+                    die
+                      "Unable to continue with $rOpts->{'format'} formatting\n";
+                }
+
+                #---------------------------------------------------------------
+                # create the tokenizer for this file
+                #---------------------------------------------------------------
+                $tokenizer = undef;    # must destroy old tokenizer
+                $tokenizer = Perl::Tidy::Tokenizer->new(
+                    source_object      => $source_object,
                     logger_object      => $logger_object,
+                    debugger_object    => $debugger_object,
                     diagnostics_object => $diagnostics_object,
-                    sink_object        => $sink_object,
+                    starting_level => $rOpts->{'starting-indentation-level'},
+                    tabs           => $rOpts->{'tabs'},
+                    entab_leading_space => $rOpts->{'entab-leading-whitespace'},
+                    indent_columns      => $rOpts->{'indent-columns'},
+                    look_for_hash_bang  => $rOpts->{'look-for-hash-bang'},
+                    look_for_autoloader => $rOpts->{'look-for-autoloader'},
+                    look_for_selfloader => $rOpts->{'look-for-selfloader'},
+                    trim_qw             => $rOpts->{'trim-qw'},
                 );
-            }
-            else {
-                die "I don't know how to do -format=$rOpts->{'format'}\n";
-            }
 
-            unless ($formatter) {
-                die "Unable to continue with $rOpts->{'format'} formatting\n";
-            }
+                #---------------------------------------------------------------
+                # now we can do it
+                #---------------------------------------------------------------
+                process_this_file( $tokenizer, $formatter );
 
-            #---------------------------------------------------------------
-            # create the tokenizer for this file
-            #---------------------------------------------------------------
-            $tokenizer = undef;                     # must destroy old tokenizer
-            $tokenizer = Perl::Tidy::Tokenizer->new(
-                source_object       => $source_object,
-                logger_object       => $logger_object,
-                debugger_object     => $debugger_object,
-                diagnostics_object  => $diagnostics_object,
-                starting_level      => $rOpts->{'starting-indentation-level'},
-                tabs                => $rOpts->{'tabs'},
-                indent_columns      => $rOpts->{'indent-columns'},
-                look_for_hash_bang  => $rOpts->{'look-for-hash-bang'},
-                look_for_autoloader => $rOpts->{'look-for-autoloader'},
-                look_for_selfloader => $rOpts->{'look-for-selfloader'},
-                trim_qw             => $rOpts->{'trim-qw'},
-            );
+                #---------------------------------------------------------------
+                # close the input source and report errors
+                #---------------------------------------------------------------
+                $source_object->close_input_file();
 
-            #---------------------------------------------------------------
-            # now we can do it
-            #---------------------------------------------------------------
-            process_this_file( $tokenizer, $formatter );
+                # line source for next iteration (if any) comes from the current
+                # temporary buffer
+                if ( $iter < $max_iterations ) {
+                    $source_object =
+                      Perl::Tidy::LineSource->new( \$temp_buffer, $rOpts,
+                        $rpending_logfile_message );
+                }
 
-            #---------------------------------------------------------------
-            # close the input source and report errors
-            #---------------------------------------------------------------
-            $source_object->close_input_file();
+            }    # end loop over iterations
 
             # get file names to use for syntax check
             my $ifname = $source_object->get_input_file_copy_name();
@@ -1005,6 +1085,17 @@ EOM
             #---------------------------------------------------------------
             $sink_object->close_output_file()    if $sink_object;
             $debugger_object->close_debug_file() if $debugger_object;
+
+            if ($postfilter) {
+                my $new_sink =
+                  Perl::Tidy::LineSink->new( $output_file, $tee_file,
+                    $line_separator, $rOpts, $rpending_logfile_message,
+                    $binmode );
+                my $buf = $postfilter->($postfilter_buffer);
+                foreach my $line ( split( "\n", $buf ) ) {
+                    $new_sink->write_line($line);
+                }
+            }
 
             my $infile_syntax_ok = 0;    # -1 no  0=don't know   1 yes
             if ($output_file) {
@@ -1178,6 +1269,7 @@ sub generate_options {
       npro
       recombine!
       valign!
+      notidy
     );
 
     my $category = 13;    # Debugging
@@ -1226,6 +1318,7 @@ sub generate_options {
     $add_option->( 'backup-file-extension',      'bext',  '=s' );
     $add_option->( 'force-read-binary',          'f',     '!' );
     $add_option->( 'format',                     'fmt',   '=s' );
+    $add_option->( 'iterations',                 'it',    '=i' );
     $add_option->( 'logfile',                    'log',   '!' );
     $add_option->( 'logfile-gap',                'g',     ':i' );
     $add_option->( 'outfile',                    'o',     '=s' );
@@ -1521,6 +1614,7 @@ sub generate_options {
       hanging-side-comments
       indent-block-comments
       indent-columns=4
+      iterations=1
       keep-old-blank-lines=1
       long-block-line-count=8
       look-for-autoloader
@@ -1819,6 +1913,21 @@ sub process_command_line {
 "Only one -pro=filename allowed, using '$2' instead of '$config_file'\n";
             }
             $config_file = $2;
+
+            # resolve <dir>/.../<file>, meaning look upwards from directory
+            if ( defined($config_file) ) {
+                if ( my ( $start_dir, $search_file ) =
+                    ( $config_file =~ m{^(.*)\.\.\./(.*)$} ) )
+                {
+                    $start_dir = '.' if !$start_dir;
+                    $start_dir = Cwd::realpath($start_dir);
+                    if ( my $found_file =
+                        find_file_upwards( $start_dir, $search_file ) )
+                    {
+                        $config_file = $found_file;
+                    }
+                }
+            }
             unless ( -e $config_file ) {
                 warn "cannot find file given with -pro=$config_file: $!\n";
                 $config_file = "";
@@ -2062,6 +2171,20 @@ sub check_options {
         }
     }
 
+    # check iteration count and quietly fix if necessary:
+    # - iterations option only applies to code beautification mode
+    # - it shouldn't be nessary to use more than about 2 iterations
+    if ( $rOpts->{'format'} ne 'tidy' ) {
+        $rOpts->{'iterations'} = 1;
+    }
+    elsif ( defined( $rOpts->{'iterations'} ) ) {
+        if    ( $rOpts->{'iterations'} <= 0 ) { $rOpts->{'iterations'} = 1 }
+        elsif ( $rOpts->{'iterations'} > 5 )  { $rOpts->{'iterations'} = 5 }
+    }
+    else {
+        $rOpts->{'iterations'} = 1;
+    }
+
     # see if user set a non-negative logfile-gap
     if ( defined( $rOpts->{'logfile-gap'} ) && $rOpts->{'logfile-gap'} >= 0 ) {
 
@@ -2129,6 +2252,26 @@ EOM
 
         # entab leading whitespace has priority over the older 'tabs' option
         if ( $rOpts->{'tabs'} ) { $rOpts->{'tabs'} = 0; }
+    }
+}
+
+sub find_file_upwards {
+    my ( $search_dir, $search_file ) = @_;
+
+    $search_dir  =~ s{/+$}{};
+    $search_file =~ s{^/+}{};
+
+    while (1) {
+        my $try_path = "$search_dir/$search_file";
+        if ( -f $try_path ) {
+            return $try_path;
+        }
+        elsif ( $search_dir eq '/' ) {
+            return undef;
+        }
+        else {
+            $search_dir = dirname($search_dir);
+        }
     }
 }
 
@@ -2816,7 +2959,7 @@ sub show_version {
     print <<"EOM";
 This is perltidy, v$VERSION 
 
-Copyright 2000-2009, Steve Hancock
+Copyright 2000-2010, Steve Hancock
 
 Perltidy is free software and may be copied under the terms of the GNU
 General Public License, which is included in the distribution files.
@@ -6011,6 +6154,12 @@ sub write_line {
     my $line_type  = $line_of_tokens->{_line_type};
     my $input_line = $line_of_tokens->{_line_text};
 
+    if ( $rOpts->{notidy} ) {
+        write_unindented_line($input_line);
+        $last_line_type = $line_type;
+        return;
+    }
+
     # _line_type codes are:
     #   SYSTEM         - system-specific code before hash-bang line
     #   CODE           - line of perl code (including comments)
@@ -7844,6 +7993,21 @@ sub set_white_space_flag {
                 }
                 else { $tightness = $tightness{$last_token} }
 
+    #=================================================================
+    # Patch for fabrice_bug.pl
+    # We must always avoid spaces around a bare word beginning with ^ as in:
+    #    my $before = ${^PREMATCH};
+    # Because all of the following cause an error in perl:
+    #    my $before = ${ ^PREMATCH };
+    #    my $before = ${ ^PREMATCH};
+    #    my $before = ${^PREMATCH };
+    # So if brace tightness flag is -bt=0 we must temporarily reset to bt=1.
+    # Note that here we must set tightness=1 and not 2 so that the closing space
+    # is also avoided (via the $j_tight_closing_paren flag in coding)
+                if ( $type eq 'w' && $token =~ /^\^/ ) { $tightness = 1 }
+
+              #=================================================================
+
                 if ( $tightness <= 0 ) {
                     $ws = WS_YES;
                 }
@@ -7967,7 +8131,7 @@ sub set_white_space_flag {
             # 'w' and 'i' checks for something like:
             #   myfun(    &myfun(   ->myfun(
             # -----------------------------------------------------
-            elsif (( $last_type =~ /^[wU]$/ )
+            elsif (( $last_type =~ /^[wUG]$/ )
                 || ( $last_type =~ /^[wi]$/ && $last_token =~ /^(\&|->)/ ) )
             {
                 $ws = WS_NO unless ($rOpts_space_function_paren);
@@ -8921,10 +9085,12 @@ sub set_white_space_flag {
                         # that this is a block and not an anonomyous
                         # hash (blktype.t, blktype1.t)
                         && ( $block_type !~ /^[\{\};]$/ )
-                        
+
                         # patch: and do not add semi-colons for recently
                         # added block types (see tmp/semicolon.t)
-                        && ( $block_type !~ /^(switch|case|given|when|default)$/)
+                        && ( $block_type !~
+                            /^(switch|case|given|when|default)$/ )
+
                         # it seems best not to add semicolons in these
                         # special block types: sort|map|grep
                         && ( !$is_sort_map_grep{$block_type} )
@@ -20885,6 +21051,7 @@ sub new {
         starting_level       => undef,
         indent_columns       => 4,
         tabs                 => 0,
+        entab_leading_space  => undef,
         look_for_hash_bang   => 0,
         trim_qw              => 1,
         look_for_autoloader  => 1,
@@ -20938,6 +21105,7 @@ sub new {
         _starting_level                     => $args{starting_level},
         _know_starting_level                => defined( $args{starting_level} ),
         _tabs                               => $args{tabs},
+        _entab_leading_space                => $args{entab_leading_space},
         _indent_columns                     => $args{indent_columns},
         _look_for_hash_bang                 => $args{look_for_hash_bang},
         _trim_qw                            => $args{trim_qw},
@@ -21622,6 +21790,7 @@ sub find_starting_indentation_level {
         my $i                            = 0;
         my $structural_indentation_level = -1; # flag for find_indentation_level
 
+        # keep looking at lines until we find a hash bang or piece of code
         my $msg = "";
         while ( $line =
             $tokenizer_self->{_line_buffer_object}->peek_ahead( $i++ ) )
@@ -21632,8 +21801,8 @@ sub find_starting_indentation_level {
                 $starting_level = 0;
                 last;
             }
-            next if ( $line =~ /^\s*#/ );      # must not be comment
-            next if ( $line =~ /^\s*$/ );      # must not be blank
+            next if ( $line =~ /^\s*#/ );    # skip past comments
+            next if ( $line =~ /^\s*$/ );    # skip past blank lines
             ( $starting_level, $msg ) =
               find_indentation_level( $line, $structural_indentation_level );
             if ($msg) { write_logfile_entry("$msg") }
@@ -21689,7 +21858,17 @@ sub find_indentation_level {
 
         $know_input_tabstr = 0;
 
-        if ( $tokenizer_self->{_tabs} ) {
+        # When -et=n is used for the output formatting, we will assume that
+        # tabs in the input formatting were also produced with -et=n.  This may
+        # not be true, but it is the best guess because it will keep leading
+        # whitespace unchanged on repeated formatting on small pieces of code
+        # when -et=n is used.  Thanks to Sam Kington for this patch.
+        if ( my $tabsize = $tokenizer_self->{_entab_leading_space} ) {
+            $leading_whitespace =~ s{^ (\t*) }
+           { " " x (length($1) * $tabsize) }xe;
+            $input_tabstr = " " x $tokenizer_self->{_indent_columns};
+        }
+        elsif ( $tokenizer_self->{_tabs} ) {
             $input_tabstr = "\t";
             if ( length($leading_whitespace) > 0 ) {
                 if ( $leading_whitespace !~ /\t/ ) {
@@ -28245,6 +28424,8 @@ Perl::Tidy - Parses and beautifies perl source
         formatter         => $formatter,           # callback object (see below)
         dump_options      => $dump_options,
         dump_options_type => $dump_options_type,
+        prefilter         => $prefilter_coderef,
+        postfilter        => $postfilter_coderef,
     );
 
 =head1 DESCRIPTION
@@ -28361,6 +28542,23 @@ See the demo program F<perltidyrc_dump.pl> for example usage.
 If the B<dump_abbreviations> parameter is given, it must be the reference to a
 hash.  This hash will receive all abbreviations used by Perl::Tidy.  See the
 demo program F<perltidyrc_dump.pl> for example usage.
+
+=item prefilter
+
+A code reference that will be applied to the source before tidying. It is
+expected to take the full content as a string in its input, and output the
+transformed content.
+
+=item postfilter
+
+A code reference that will be applied to the tidied result before outputting.
+It is expected to take the full content as a string in its input, and output
+the transformed content.
+
+Note: A convenient way to check the function of your custom prefilter and
+postfilter code is to use the --notidy option, first with just the prefilter
+and then with both the prefilter and postfilter.  See also the file
+B<filter_example.pl> in the perltidy distribution.
 
 =back
 
@@ -28537,7 +28735,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20090616.
+This man page documents Perl::Tidy version 20101217.
 
 =head1 AUTHOR
 
