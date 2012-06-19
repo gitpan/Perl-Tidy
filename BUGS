@@ -15,17 +15,5 @@ Perltidy open BUGS
     Since the --extrude option is typically only used for testing perltidy,
     this type of error should not normally occur in practice.
 
-  In some rare instances the formatting can oscillate between two states
-    The following example was sent by Denis Moskowitz, Oct 29 2010:
-
-    grep { $_->foo ne 'bar' } # asdfa asdf asdf asdf asdf asdf asdf asdf
-    asdf asdf asdf @baz;
-
-    With standard parameters this oscillates between the above and:
-
-    grep { $_->foo ne 'bar' } # asdfa asdf asdf asdf asdf asdf asdf asdf
-    asdf asdf asdf @baz;
-
-    A workaround here would be to make a slight change to the side comment
-    length.
+  Perltidy does not handle UTF-8 encoded files.
 

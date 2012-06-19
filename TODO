@@ -1,30 +1,22 @@
 Perltidy TODO List
-    This is a partial "wish-list" of features to add and things to do.
+  This is a partial "wish-list" of features to add and things to do.
 
-  -b does not work through the Tidy module
-    The use of -b in the following does not work:
+  Provide better blank line controls:
+    Better control of the number of blank lines, such as before subs and
+    packages, and after opening block braces.  The only difficulty
+    is defining a set of controls with enough flexibility, and that won't
+    interfere with current controls. 
 
-       use Perl::Tidy ();
-       use File::Spec;
-
-       my $file = File::Spec->catfile( $dir,
-          $filename );
-
-       Perl::Tidy::perltidy(
-          source     => $file,
-          argv        => '-b',
-          perltidyrc => $perltidyrc,
-       );
-
-    A temporary workaround is:
-
-       Perl::Tidy::perltidy(
-          argv        => "-b $file",
-          perltidyrc => $perltidyrc,
-       );
+  Provide an option to ignore side comments when checking line length.  
+    That is, side comments would be allowed to be arbitrarily long without
+    influencing line breaks. 
 
   Improved Vertical Alignment
     There are still many opportunities for improving vertical alignment.
+
+  Minimize the instances in which formatting changes on a second iteration.  
+
+  Add a convergence test when -it=n is used
 
   Documentation
     A FAQ is needed to explain some of the more subtle formatting issues,
@@ -44,3 +36,7 @@ Things which have been suggested but will not be done
     A -r flag might be nice, but this is best handled by an exterior shell
     script.
 
+  Make perltidy support the syntax of some module XXX.
+    This generally won't be done unless the module is part of the core perl
+    distribution.  But in some cases it might be possible to use the prefilter 
+    and postfilter capabilities of the Tidy.pm module to help.

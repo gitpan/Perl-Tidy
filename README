@@ -6,14 +6,8 @@ Welcome to Perltidy!
     -- please see the included file "COPYING" for details.
 
 PREREQUISITES
-    An effort has been made to keep "perltidy" compatable with versions of
-    Perl as old as 5.004. This release was tested on Perl version
-    5.004_04 under linux. (You can find your version with "perl -v").
-    However, some systems this old may have problems with installation
-    scripts.  If you run into installation difficulties, don't give up,
-    try the alternative installation method described in the INSTALL file.
-
-    The following modules are not required, but perltidy may use them if
+    "perltidy" should work with most standard Perl installations. The
+    following modules are not required, but perltidy may use them if
     detected:
 
       HTML::Entities  will be used to encode HTML entities if detected
@@ -53,15 +47,9 @@ WHAT NEXT
 
     Reading the brief tutorial should help you use perltidy effectively.
 
-    Perltidy is still being developed, so please check sourceforge
-    occasionally for updates. New releases are announced on freshmeat.net.
-
 FEEDBACK / BUG REPORTS
     Bug reports, comments and suggestions are welcome. Attach the smallest
-    piece of code which demonstrates the bug or issue. Your efforts are
-    greatly appreciated!
-
-    Thank You
+    piece of code which demonstrates the bug or issue.
 
      Steve Hancock
      perltidy at users.sourceforge.net
