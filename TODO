@@ -1,12 +1,6 @@
 Perltidy TODO List
   This is a partial "wish-list" of features to add and things to do.
 
-  Provide better blank line controls:
-    Better control of the number of blank lines, such as before subs and
-    packages, and after opening block braces.  The only difficulty
-    is defining a set of controls with enough flexibility, and that won't
-    interfere with current controls. 
-
   Provide an option to ignore side comments when checking line length.  
     That is, side comments would be allowed to be arbitrarily long without
     influencing line breaks. 

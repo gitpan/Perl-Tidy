@@ -77,7 +77,7 @@ use File::Basename;
 use File::Copy;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2012/06/19 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2012/07/01 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -238,7 +238,6 @@ sub make_temporary_filename {
 
     # Make a temporary filename.
     # FIXME: return both a name and opened filehandle
-    # FIXME: re-evaluate this on modern windows systems
     #
     # The POSIX tmpnam() function tends to be unreliable for non-unix systems
     # (at least for the win32 systems that I've tested), so use a pre-defined
@@ -993,41 +992,53 @@ EOM
             #---------------------------------------------------------------
             # loop over iterations for one source stream
             #---------------------------------------------------------------
+
+            # We will do a convergence test if 3 or more iterations are allowed.
+            # It would be pointless for fewer because we have to make at least
+            # two passes before we can see if we are converged, and the test
+            # would just slow things down.
             my $max_iterations = $rOpts->{'iterations'};
+            my $convergence_log_message;
+            my %saw_md5;
+            my $do_convergence_test = $max_iterations > 2;
+            if ($do_convergence_test) {
+                eval "use Digest::MD5 qw(md5_hex)";
+                $do_convergence_test = !$@;
+            }
 
-            # save sink object for final iterations
-            my $sink_object_final = $sink_object;
-
-            # and turn off logging and debugging except for last iteration
-            my $debugger_object_final    = $debugger_object;
-            my $logger_object_final      = $logger_object;
-            my $diagnostics_object_final = $diagnostics_object;
-            $debugger_object    = undef;
-            $logger_object      = undef;
-            $diagnostics_object = undef;
+            # save objects to allow redirecting output during iterations
+            my $sink_object_final     = $sink_object;
+            my $debugger_object_final = $debugger_object;
+            my $logger_object_final   = $logger_object;
 
             for ( my $iter = 1 ; $iter <= $max_iterations ; $iter++ ) {
-                my $temp_buffer;
 
-                # output to temp buffer until last iteration
+                # send output stream to temp buffers until last iteration
+                my $sink_buffer;
                 if ( $iter < $max_iterations ) {
                     $sink_object =
-                      Perl::Tidy::LineSink->new( \$temp_buffer, $tee_file,
+                      Perl::Tidy::LineSink->new( \$sink_buffer, $tee_file,
                         $line_separator, $rOpts, $rpending_logfile_message,
                         $binmode );
                 }
                 else {
-
-                    # restore final sink and diagnostic objects for final pass
-                    $sink_object        = $sink_object_final;
-                    $debugger_object    = $debugger_object_final;
-                    $logger_object      = $logger_object_final;
-                    $diagnostics_object = $diagnostics_object_final;
+                    $sink_object = $sink_object_final;
                 }
 
-              #---------------------------------------------------------------
-              # create a formatter for this file : html writer or pretty printer
-              #---------------------------------------------------------------
+                # Save logger, debugger output only on pass 1 because:
+                # (1) line number references must be to the starting
+                # source, not an intermediate result, and
+                # (2) we need to know if there are errors so we can stop the
+                # iterations early if necessary.
+                if ( $iter > 1 ) {
+                    $debugger_object = undef;
+                    $logger_object   = undef;
+                }
+
+                #------------------------------------------------------------
+                # create a formatter for this file : html writer or
+                # pretty printer
+                #------------------------------------------------------------
 
                 # we have to delete any old formatter because, for safety,
                 # the formatter will check to see that there is only one.
@@ -1088,28 +1099,95 @@ EOM
                 $source_object->close_input_file();
 
                 # line source for next iteration (if any) comes from the current
-                # temporary buffer
+                # temporary output buffer
                 if ( $iter < $max_iterations ) {
-                    $source_object =
-                      Perl::Tidy::LineSource->new( \$temp_buffer, $rOpts,
-                        $rpending_logfile_message );
-                }
 
+                    $sink_object->close_output_file();
+                    $source_object =
+                      Perl::Tidy::LineSource->new( \$sink_buffer, $rOpts,
+                        $rpending_logfile_message );
+
+                    # stop iterations if errors or converged
+                    my $stop_now = $logger_object->{_warning_count};
+                    if ($stop_now) {
+                        $convergence_log_message = <<EOM;
+Stopping iterations because of errors.                       
+EOM
+                    }
+                    elsif ($do_convergence_test) {
+                        my $digest = md5_hex($sink_buffer);
+                        if ( !$saw_md5{$digest} ) {
+                            $saw_md5{$digest} = $iter;
+                        }
+                        else {
+
+                            # Saw this result before, stop iterating
+                            $stop_now = 1;
+                            my $iterm = $iter - 1;
+                            if ( $saw_md5{$digest} != $iterm ) {
+
+                                # Blinking (oscillating) between two stable
+                                # end states.  This has happened in the past
+                                # but at present there are no known instances.
+                                $convergence_log_message = <<EOM;
+Blinking. Output for iteration $iter same as for $saw_md5{$digest}. 
+EOM
+                                $diagnostics_object->write_diagnostics(
+                                    $convergence_log_message)
+                                  if $diagnostics_object;
+                            }
+                            else {
+                                $convergence_log_message = <<EOM;
+Converged.  Output for iteration $iter same as for iter $iterm.
+EOM
+                                $diagnostics_object->write_diagnostics(
+                                    $convergence_log_message)
+                                  if $diagnostics_object && $iterm > 2;
+                            }
+                        }
+                    } ## end if ($do_convergence_test)
+
+                    if ($stop_now) {
+
+                        # we are stopping the iterations early;
+                        # copy the output stream to its final destination
+                        $sink_object = $sink_object_final;
+                        while ( my $line = $source_object->get_line() ) {
+                            $sink_object->write_line($line);
+                        }
+                        $source_object->close_input_file();
+                        last;
+                    }
+                } ## end if ( $iter < $max_iterations)
             }    # end loop over iterations for one source file
 
+            # restore objects which have been temporarily undefined
+            # for second and higher iterations
+            $debugger_object = $debugger_object_final;
+            $logger_object   = $logger_object_final;
+
+            $logger_object->write_logfile_entry($convergence_log_message)
+              if $convergence_log_message;
+
             #---------------------------------------------------------------
-            # Complete any postfilter operation
+            # Perform any postfilter operation
             #---------------------------------------------------------------
             if ($postfilter) {
-                $sink_object->close_output_file() if $sink_object;
+                $sink_object->close_output_file();
                 $sink_object =
                   Perl::Tidy::LineSink->new( $output_file, $tee_file,
                     $line_separator, $rOpts, $rpending_logfile_message,
                     $binmode );
                 my $buf = $postfilter->($postfilter_buffer);
-                foreach my $line ( split( "\n", $buf ) ) {
+                $source_object =
+                  Perl::Tidy::LineSource->new( \$buf, $rOpts,
+                    $rpending_logfile_message );
+                ##chomp $buf;
+                ##foreach my $line ( split( "\n", $buf , -1) ) {
+                while ( my $line = $source_object->get_line() ) {
                     $sink_object->write_line($line);
                 }
+                $source_object->close_input_file();
             }
 
             # Save names of the input and output files for syntax check
@@ -1216,9 +1294,10 @@ EOM
 
                 # As an added safety precaution, do not delete the source file
                 # if its size has dropped from positive to zero, since this
-                # could indicate a disaster of some kind.  Actually, this could
-                # happen if you had a file of all comments (or pod) and deleted
-                # everything with -dac (-dap) for some reason.
+                # could indicate a disaster of some kind, including a hardware
+                # failure.  Actually, this could happen if you had a file of
+                # all comments (or pod) and deleted everything with -dac (-dap)
+                # for some reason.
                 if ( !-s $output_file && -s $ifname && $delete_backup == 1 ) {
                     warn(
 "output file '$output_file' missing or zero length; original '$ifname' not deleted\n"
@@ -2339,13 +2418,14 @@ sub check_options {
 
     # check iteration count and quietly fix if necessary:
     # - iterations option only applies to code beautification mode
-    # - it shouldn't be nessary to use more than about 2 iterations
+    # - the convergence check should stop most runs on iteration 2, and
+    #   virtually all on iteration 3.  But we'll allow up to 6.
     if ( $rOpts->{'format'} ne 'tidy' ) {
         $rOpts->{'iterations'} = 1;
     }
     elsif ( defined( $rOpts->{'iterations'} ) ) {
         if    ( $rOpts->{'iterations'} <= 0 ) { $rOpts->{'iterations'} = 1 }
-        elsif ( $rOpts->{'iterations'} > 5 )  { $rOpts->{'iterations'} = 5 }
+        elsif ( $rOpts->{'iterations'} > 6 )  { $rOpts->{'iterations'} = 6 }
     }
     else {
         $rOpts->{'iterations'} = 1;
@@ -3537,9 +3617,13 @@ EOM
         #
         # NOTES: The -1 count is needed to avoid loss of trailing blank lines
         # (which might be important in a DATA section).
-        # The chomp avoids introducing an extra blank line
-        chomp ${$rscalar};
-        my @array = map { $_ .= "\n" } split /\n/, ${$rscalar}, -1;
+        my @array;
+        if ( $rscalar && ${$rscalar} ) {
+            @array = map { $_ .= "\n" } split /\n/, ${$rscalar}, -1;
+
+            # remove possible extra blank line introduced with split
+            if ( @array && $array[-1] eq "\n" ) { pop @array }
+        }
         my $i_next = 0;
         return bless [ \@array, $mode, $i_next ], $package;
     }
@@ -9082,6 +9166,16 @@ sub set_white_space_flag {
                 }
 
                 if ( $token =~ /^sub/ ) { $token =~ s/\s+/ /g }
+
+                # trim identifiers of trailing blanks which can occur
+                # under some unusual circumstances, such as if the
+                # identifier 'witch' has trailing blanks on input here:
+                #
+                # sub
+                # witch
+                # ()   # prototype may be on new line ...
+                # ...
+                if ( $type eq 'i' ) { $token =~ s/\s+$//g }
             }
 
             # change 'LABEL   :'   to 'LABEL:'
@@ -10470,6 +10564,25 @@ sub set_logical_padding {
             last unless $ipad;
         }
 
+        # We cannot pad a leading token at the lowest level because
+        # it could cause a bug in which the starting indentation
+        # level is guessed incorrectly each time the code is run
+        # though perltidy, thus causing the code to march off to
+        # the right.  For example, the following snippet would have
+        # this problem:
+
+##     ov_method mycan( $package, '(""' ),       $package
+##  or ov_method mycan( $package, '(0+' ),       $package
+##  or ov_method mycan( $package, '(bool' ),     $package
+##  or ov_method mycan( $package, '(nomethod' ), $package;
+
+        # If this snippet is within a block this won't happen
+        # unless the user just processes the snippet alone within
+        # an editor.  In that case either the user will see and
+        # fix the problem or it will be corrected next time the
+        # entire file is processed with perltidy.
+        next if ( $ipad == 0 && $levels_to_go[$ipad] == 0 );
+
         # next line must not be at greater depth
         my $iend_next = $$ri_last[ $line + 1 ];
         next
@@ -11653,11 +11766,35 @@ sub send_lines_to_vertical_aligner {
         # Set flag indicating if this line ends in an opening
         # token and is very short, so that a blank line is not
         # needed if the subsequent line is a comment.
-        $last_output_short_opening_token =
-             $types_to_go[$iend] =~ /^[\{\(\[L]$/
-          && $iend - $ibeg <= 2
-          && $tokens_to_go[$ibeg] !~ /^sub/
+        # Examples of what we are looking for:
+        #   {
+        #   && (
+        #   BEGIN {
+        #   default {
+        #   sub {
+        $last_output_short_opening_token
+
+          # line ends in opening token
+          = $types_to_go[$iend] =~ /^[\{\(\[L]$/
+
+          # and either
+          && (
+            # line has either single opening token
+            $iend == $ibeg
+
+            # or is a single token followed by opening token.
+            # Note that sub identifiers have blanks like 'sub doit'
+            || ( $iend - $ibeg <= 2 && $tokens_to_go[$ibeg] !~ /\s+/ )
+          )
+
+          # and limit total to 10 character widths
           && token_sequence_length( $ibeg, $iend ) <= 10;
+
+##        $last_output_short_opening_token =
+##             $types_to_go[$iend] =~ /^[\{\(\[L]$/
+##          && $iend - $ibeg <= 2
+##          && $tokens_to_go[$ibeg] !~ /^sub/
+##          && token_sequence_length( $ibeg, $iend ) <= 10;
 
     }    # end of loop to output each line
 
@@ -12202,7 +12339,7 @@ sub lookup_opening_indentation {
         );
 
         # if we are at a closing token of some type..
-        if ( $types_to_go[$ibeg] =~ /^[\)\}\]]$/ ) {
+        if ( $types_to_go[$ibeg] =~ /^[\)\}\]R]$/ ) {
 
             # get the indentation of the line containing the corresponding
             # opening token
@@ -12239,7 +12376,7 @@ sub lookup_opening_indentation {
                 $adjust_indentation = 1;
             }
 
-            # TESTING: outdent something like '),'
+            # outdent something like '),'
             if (
                 $terminal_type eq ','
 
@@ -12524,7 +12661,8 @@ sub lookup_opening_indentation {
         my $is_isolated_block_brace = $block_type_to_go[$ibeg]
           && ( $iend == $ibeg
             || $is_if_elsif_else_unless_while_until_for_foreach{
-                $block_type_to_go[$ibeg] } );
+                $block_type_to_go[$ibeg]
+            } );
 
         # only do this for a ':; which is aligned with its leading '?'
         my $is_unaligned_colon = $types_to_go[$ibeg] eq ':' && !$is_leading;
@@ -13013,7 +13151,7 @@ sub get_seqno {
                     if ( $token eq '(' && $vert_last_nonblank_type eq 'k' ) {
                         $alignment_type = ""
                           unless $vert_last_nonblank_token =~
-                              /^(if|unless|elsif)$/;
+                          /^(if|unless|elsif)$/;
                     }
 
                     # be sure the alignment tokens are unique
@@ -13471,8 +13609,7 @@ sub terminal_type {
             # adjust bond strength bias
             #-----------------------------------------------------------------
 
-            # TESTING: add any bias set by sub scan_list at old comma
-            # break points.
+            # add any bias set by sub scan_list at old comma break points.
             elsif ( $type eq ',' ) {
                 $bond_str += $bond_strength_to_go[$i];
             }
@@ -14084,10 +14221,12 @@ sub pad_array_to_go {
         # won't work very well. However, the user can always
         # prevent following the old breakpoints with the
         # -iob flag.
-        my $dd   = shift;
-        my $bias = -.01;
+        my $dd                    = shift;
+        my $bias                  = -.01;
+        my $old_comma_break_count = 0;
         foreach my $ii ( @{ $comma_index[$dd] } ) {
             if ( $old_breakpoint_to_go[$ii] ) {
+                $old_comma_break_count++;
                 $bond_strength_to_go[$ii] = $bias;
 
                 # reduce bias magnitude to force breaks in order
@@ -14098,6 +14237,7 @@ sub pad_array_to_go {
         # Also put a break before the first comma if
         # (1) there was a break there in the input, and
         # (2) that was exactly one previous break in the input
+        # (3) there are multiple old comma breaks
         #
         # For example, we will follow the user and break after
         # 'print' in this snippet:
@@ -14106,6 +14246,12 @@ sub pad_array_to_go {
         #      "\t", $have, " is ", text_unit($hu), "\n",
         #      "\t", $want, " is ", text_unit($wu), "\n",
         #      ;
+        #  But we will not force a break after the first comma here
+        #  (causes a blinker):
+        #        $heap->{stream}->set_output_filter(
+        #            poe::filter::reference->new('myotherfreezer') ),
+        #          ;
+        #
         my $i_first_comma = $comma_index[$dd]->[0];
         if ( $old_breakpoint_to_go[$i_first_comma] ) {
             my $level_comma = $levels_to_go[$i_first_comma];
@@ -14119,7 +14265,8 @@ sub pad_array_to_go {
                       if ( $levels_to_go[$ii] == $level_comma );
                 }
             }
-            if ( $ibreak >= 0 && $obp_count == 1 ) {
+            if ( $ibreak >= 0 && $obp_count == 1 && $old_comma_break_count > 1 )
+            {
                 set_forced_breakpoint($ibreak);
             }
         }
@@ -14145,7 +14292,6 @@ sub pad_array_to_go {
                $item_count_stack[$dd] == 0
             && $is_logical_container{ $container_type[$dd] }
 
-            # TESTING:
             || $has_old_logical_breakpoints[$dd]
           )
         {
@@ -14385,7 +14531,7 @@ sub pad_array_to_go {
                     if ( $type eq ':' ) {
                         $last_colon_sequence_number = $type_sequence;
 
-                        # TESTING: retain break at a ':' line break
+                        # retain break at a ':' line break
                         if ( ( $i == $i_line_start || $i == $i_line_end )
                             && $rOpts_break_at_old_ternary_breakpoints )
                         {
@@ -16494,6 +16640,13 @@ sub undo_forced_breakpoint_stack {
                 # if '=' at end of line ...
                 elsif ( $is_assignment{ $types_to_go[$iend_1] } ) {
 
+                    # keep break after = if it was in input stream
+                    # this helps prevent 'blinkers'
+                    next if $old_breakpoint_to_go[$iend_1]
+
+                      # don't strand an isolated '='
+                      && $iend_1 != $ibeg_1;
+
                     my $is_short_quote =
                       (      $types_to_go[$ibeg_2] eq 'Q'
                           && $ibeg_2 == $iend_2
@@ -16736,8 +16889,8 @@ sub undo_forced_breakpoint_stack {
                         foreach my $ii ( $ibeg_0, $ibeg_1, $ibeg_3, $ibeg_4 ) {
                             $local_count++
                               if $ii >= 0
-                                  && $types_to_go[$ii] eq ':'
-                                  && $levels_to_go[$ii] == $lev;
+                              && $types_to_go[$ii] eq ':'
+                              && $levels_to_go[$ii] == $lev;
                         }
                         next unless ( $local_count > 1 );
                     }
@@ -16937,7 +17090,7 @@ sub undo_forced_breakpoint_stack {
 
                 # handle line with leading = or similar
                 elsif ( $is_assignment{ $types_to_go[$ibeg_2] } ) {
-                    next unless $n == 1;
+                    next unless ( $n == 1 || $n == $nmax );
                     next
                       unless (
 
@@ -16949,7 +17102,11 @@ sub undo_forced_breakpoint_stack {
 
                         # or the next line ends with a here doc
                         || $types_to_go[$iend_2] eq 'h'
+
+                        # or this is a short line ending in ;
+                        || ( $n == $nmax && $this_line_is_semicolon_terminated )
                       );
+                    $forced_breakpoint_to_go[$iend_1] = 0;
                 }
 
                 #----------------------------------------------------------
@@ -16963,8 +17120,25 @@ sub undo_forced_breakpoint_stack {
                 my $bs = $bond_strength_to_go[$iend_1] + $bs_tweak;
 
                 # combined line cannot be too long
+                my $excess = excess_line_length( $ibeg_1, $iend_2 );
+                next if ( $excess > 0 );
+
+                # Require a few extra spaces before recombining lines if we are
+                # at an old breakpoint unless this is a simple list or terminal
+                # line.  The goal is to avoid oscillating between two
+                # quasi-stable end states.  For example this snippet caused
+                # problems:
+##    my $this =
+##    bless {
+##        TText => "[" . ( join ',', map { "\"$_\"" } split "\n", $_ ) . "]"
+##      },
+##      $type;
                 next
-                  if excess_line_length( $ibeg_1, $iend_2 ) > 0;
+                  if ( $old_breakpoint_to_go[$iend_1]
+                    && !$this_line_is_semicolon_terminated
+                    && $n < $nmax
+                    && $excess + 4 > 0
+                    && $types_to_go[$iend_2] ne ',' );
 
                 # do not recombine if we would skip in indentation levels
                 if ( $n < $nmax ) {
@@ -17435,9 +17609,43 @@ sub set_continuation_breaks {
             my $next_nonblank_token      = $tokens_to_go[$i_next_nonblank];
             my $next_nonblank_block_type = $block_type_to_go[$i_next_nonblank];
             my $strength                 = $bond_strength_to_go[$i_test];
-            my $must_break               = 0;
 
-            # FIXME: TESTING: Might want to be able to break after these
+            # use old breaks as a tie-breaker.  For example to
+            # prevent blinkers with -pbp in this code:
+
+##@keywords{
+##    qw/ARG OUTPUT PROTO CONSTRUCTOR RETURNS DESC PARAMS SEEALSO EXAMPLE/}
+##    = ();
+
+            # At the same time try to prevent a leading * in this code
+            # with the default formatting:
+            #
+##                return
+##                    factorial( $a + $b - 1 ) / factorial( $a - 1 ) / factorial( $b - 1 )
+##                  * ( $x**( $a - 1 ) )
+##                  * ( ( 1 - $x )**( $b - 1 ) );
+
+            # reduce strength a bit to break ties at an old breakpoint ...
+            $strength -= $tiny_bias
+              if $old_breakpoint_to_go[$i_test]
+
+              # which is a 'good' breakpoint, meaning ...
+              # we don't want to break before it
+              && !$want_break_before{$type}
+
+              # and either we want to break before the next token
+              # or the next token is not short (i.e. not a '*', '/' etc.)
+              && $i_next_nonblank <= $imax
+              && (
+                $want_break_before{$next_nonblank_type}
+                || ( $lengths_to_go[ $i_next_nonblank + 1 ] -
+                    $lengths_to_go[$i_next_nonblank] > 2 )
+                || $next_nonblank_type =~ /^[\(\[\{L]$/
+              );
+
+            my $must_break = 0;
+
+            # FIXME: Might want to be able to break after these
             # force an immediate break at certain operators
             # with lower level than the start of the line
             if (
@@ -17502,6 +17710,8 @@ sub set_continuation_breaks {
             # Avoid a break which would strand a single punctuation
             # token.  For example, we do not want to strand a leading
             # '.' which is followed by a long quoted string.
+            # But note that we do want to do this with -extrude (l=1)
+            # so please test any changes to this code on -extrude.
             if (
                    !$must_break
                 && ( $i_test == $i_begin )
@@ -17512,7 +17722,7 @@ sub set_continuation_breaks {
                         $leading_spaces +
                         $lengths_to_go[ $i_test + 1 ] -
                         $starting_sum
-                    ) <= $rOpts_maximum_line_length
+                    ) < $rOpts_maximum_line_length
                 )
               )
             {
@@ -24436,13 +24646,26 @@ EOM
                         $statement_type = $tok;    # next '{' is block
                     }
 
+                    #
                     # indent trailing if/unless/while/until
                     # outdenting will be handled by later indentation loop
-                    if (   $tok =~ /^(if|unless|while|until)$/
-                        && $next_nonblank_token ne '(' )
-                    {
-                        $indent_flag = 1;
-                    }
+## DEACTIVATED: unfortunately this can cause some unwanted indentation like:
+##$opt_o = 1
+##  if !(
+##             $opt_b
+##          || $opt_c
+##          || $opt_d
+##          || $opt_f
+##          || $opt_i
+##          || $opt_l
+##          || $opt_o
+##          || $opt_x
+##  );
+##                    if (   $tok =~ /^(if|unless|while|until)$/
+##                        && $next_nonblank_token ne '(' )
+##                    {
+##                        $indent_flag = 1;
+##                    }
                 }
 
                 # check for inline label following
@@ -24886,15 +25109,29 @@ EOM
                     if ( $type eq 'k' ) {
                         $indented_if_level = $level_in_tokenizer;
                     }
-                }
 
-                if ( $routput_block_type->[$i] ) {
-                    $nesting_block_flag = 1;
-                    $nesting_block_string .= '1';
+                    # do not change container environement here if we are not
+                    # at a real list. Adding this check prevents "blinkers"
+                    # often near 'unless" clauses, such as in the following
+                    # code:
+##          next
+##            unless -e (
+##                    $archive =
+##                      File::Spec->catdir( $_, "auto", $root, "$sub$lib_ext" )
+##            );
+
+                    $nesting_block_string .= "$nesting_block_flag";
                 }
                 else {
-                    $nesting_block_flag = 0;
-                    $nesting_block_string .= '0';
+
+                    if ( $routput_block_type->[$i] ) {
+                        $nesting_block_flag = 1;
+                        $nesting_block_string .= '1';
+                    }
+                    else {
+                        $nesting_block_flag = 0;
+                        $nesting_block_string .= '0';
+                    }
                 }
 
                 # we will use continuation indentation within containers
@@ -24912,8 +25149,8 @@ EOM
                     else {
                         $bit = 1
                           unless
-                            $is_logical_container{ $routput_container_type->[$i]
-                              };
+                          $is_logical_container{ $routput_container_type->[$i]
+                          };
                     }
                 }
                 $nesting_list_string .= $bit;
@@ -25002,7 +25239,8 @@ EOM
 # /^(\}|\{|BEGIN|END|CHECK|INIT|AUTOLOAD|DESTROY|UNITCHECK|continue|;|if|elsif|else|unless|while|until|for|foreach)$/
                         elsif (
                             $is_zero_continuation_block_type{
-                                $routput_block_type->[$i] } )
+                                $routput_block_type->[$i]
+                            } )
                         {
                             $in_statement_continuation = 0;
                         }
@@ -25011,7 +25249,8 @@ EOM
                         #     /^(sort|grep|map|do|eval)$/ )
                         elsif (
                             $is_not_zero_continuation_block_type{
-                                $routput_block_type->[$i] } )
+                                $routput_block_type->[$i]
+                            } )
                         {
                         }
 
@@ -25548,7 +25787,7 @@ sub code_block_type {
 
     # or a sub definition
     elsif ( ( $last_nonblank_type eq 'i' || $last_nonblank_type eq 't' )
-        && $last_nonblank_token =~ /^sub\b/ )
+        && $last_nonblank_token =~ /^(sub|package)\b/ )
     {
         return $last_nonblank_token;
     }
@@ -26604,7 +26843,7 @@ sub do_scan_package {
         # check for error
         my ( $next_nonblank_token, $i_next ) =
           find_next_nonblank_token( $i, $rtokens, $max_token_index );
-        if ( $next_nonblank_token !~ /^[;\}]$/ ) {
+        if ( $next_nonblank_token !~ /^[;\{\}]$/ ) {
             warning(
                 "Unexpected '$next_nonblank_token' after package name '$tok'\n"
             );
@@ -29104,7 +29343,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20120619.
+This man page documents Perl::Tidy version 20120701.
 
 =head1 LICENSE
 

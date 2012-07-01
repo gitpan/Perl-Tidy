@@ -473,13 +473,16 @@ revert to the default behavior of using the line ending of the host system.
 =item B<-it=n>,   B<--iterations=n>
 
 This flag causes perltidy to do B<n> complete iterations.  The reason for this
-flag is that code beautification is a somewhat iterative process and in some
+flag is that code beautification is an iterative process and in some
 cases the output from perltidy can be different if it is applied a second time.
 For most purposes the default of B<n=1> should be satisfactory.  However B<n=2>
 can be useful when a major style change is being made, or when code is being
-beautified on check-in to a source code control system.  The run time will be
-approximately proportional to B<n>, and it should seldom be necessary to use a
-value greater than B<n=2>.  This flag has no effect when perltidy is used to generate html.
+beautified on check-in to a source code control system.  It has been found to
+be extremely rare for the output to change after 2 iterations.  If a value
+B<n> is greater than 2 is input then a convergence test will be used to stop
+the iterations as soon as possible, almost always after 2 iterations.  
+
+This flag has no effect when perltidy is used to generate html.
 
 =back
 
@@ -2907,7 +2910,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20120619.
+This man page documents perltidy version 20120701.
 
 =head1 CREDITS
 

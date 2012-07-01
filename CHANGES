@@ -1,4 +1,61 @@
 Perltidy Change Log
+  2012 07 01
+     - Corrected problem introduced by using a chomp on scalar references, RT #77978
+
+     - Added support for Perl 5.14 package block syntax, RT #78114.
+
+     - A convergence test is made if three or more iterations are requested with
+       the -it=n parameter to avoid wasting computer time.  Several hundred Mb of
+       code gleaned from the internet were searched with the results that: 
+        - It is unusual for two iterations to be required unless a major 
+          style change is being made. 
+        - Only one case has been found where three iterations were required.  
+        - No cases requiring four iterations have been found with this version.
+       For the previous version several cases where found the results could
+       oscillate between two semi-stable states. This version corrects this.
+
+       So if it is important that the code be converged it is okay to set -it=4
+       with this version and it will probably stop after the second iteration.
+
+     - Improved ability to identify and retain good line break points in the
+       input stream, such as at commas and equals. You can always tell 
+       perltidy to ignore old breakpoints with -iob.  
+
+     - Fixed glitch in which a terminal closing hash brace followed by semicolon
+       was not outdented back to the leading line depth like other closing
+       tokens.  Thanks to Keith Neargarder for noting this.
+
+         OLD:
+            my ( $pre, $post ) = @{
+                {
+                    "pp_anonlist" => [ "[", "]" ],
+                    "pp_anonhash" => [ "{", "}" ]
+                }->{ $kid->ppaddr }
+              };   # terminal brace
+
+         NEW:
+            my ( $pre, $post ) = @{
+                {
+                    "pp_anonlist" => [ "[", "]" ],
+                    "pp_anonhash" => [ "{", "}" ]
+                }->{ $kid->ppaddr }
+            };    # terminal brace
+
+     - Removed extra indentation given to trailing 'if' and 'unless' clauses 
+       without parentheses because this occasionally produced undesirable 
+       results.  This only applies where parens are not used after the if or
+       unless.
+
+        OLD:
+            return undef
+              unless my ( $who, $actions ) =
+                  $clause =~ /^($who_re)((?:$action_re)+)$/o; 
+    
+        NEW:
+            return undef
+              unless my ( $who, $actions ) =
+              $clause =~ /^($who_re)((?:$action_re)+)$/o;
+
   2012 06 19
      - Updated perltidy to handle all quote modifiers defined for perl 5 version 16.
 

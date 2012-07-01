@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2012-06-19" "perl v5.10.1" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2012-06-29" "perl v5.10.1" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -583,13 +583,16 @@ revert to the default behavior of using the line ending of the host system.
 .IP "\fB\-it=n\fR,   \fB\-\-iterations=n\fR" 4
 .IX Item "-it=n,   --iterations=n"
 This flag causes perltidy to do \fBn\fR complete iterations.  The reason for this
-flag is that code beautification is a somewhat iterative process and in some
+flag is that code beautification is an iterative process and in some
 cases the output from perltidy can be different if it is applied a second time.
 For most purposes the default of \fBn=1\fR should be satisfactory.  However \fBn=2\fR
 can be useful when a major style change is being made, or when code is being
-beautified on check-in to a source code control system.  The run time will be
-approximately proportional to \fBn\fR, and it should seldom be necessary to use a
-value greater than \fBn=2\fR.  This flag has no effect when perltidy is used to generate html.
+beautified on check-in to a source code control system.  It has been found to
+be extremely rare for the output to change after 2 iterations.  If a value
+\&\fBn\fR is greater than 2 is input then a convergence test will be used to stop
+the iterations as soon as possible, almost always after 2 iterations.
+.Sp
+This flag has no effect when perltidy is used to generate html.
 .SS "Code Indentation Control"
 .IX Subsection "Code Indentation Control"
 .IP "\fB\-ci=n\fR, \fB\-\-continuation\-indentation=n\fR" 4
@@ -2990,7 +2993,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20120619.
+This man page documents perltidy version 20120701.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with
