@@ -16,9 +16,9 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
-#    You should have received a copy of the GNU General Public License
-#    along with this program; if not, write to the Free Software
-#    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#    You should have received a copy of the GNU General Public License along
+#    with this program; if not, write to the Free Software Foundation, Inc.,
+#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 #    For brief instructions instructions, try 'perltidy -h'.
 #    For more complete documentation, try 'man perltidy'
@@ -66,6 +66,7 @@ use vars qw{
   @ISA
   @EXPORT
   $missing_file_spec
+  $fh_stderr
 };
 
 @ISA    = qw( Exporter );
@@ -77,7 +78,7 @@ use File::Basename;
 use File::Copy;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2012/07/01 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2012/07/14 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -162,7 +163,7 @@ EOM
         }
     }
     $fh = $New->( $filename, $mode )
-      or warn "Couldn't open file:$filename in mode:$mode : $!\n";
+      or Warn("Couldn't open file:$filename in mode:$mode : $!\n");
     return $fh, ( $ref or $filename );
 }
 
@@ -237,13 +238,11 @@ sub catfile {
 sub make_temporary_filename {
 
     # Make a temporary filename.
-    # FIXME: return both a name and opened filehandle
-    #
-    # The POSIX tmpnam() function tends to be unreliable for non-unix systems
+    # The POSIX tmpnam() function has been unreliable for non-unix systems
     # (at least for the win32 systems that I've tested), so use a pre-defined
     # name for them.  A disadvantage of this is that two perltidy
     # runs in the same working directory may conflict.  However, the chance of
-    # that is small and managable by the user, especially on systems for which
+    # that is small and manageable by the user, especially on systems for which
     # the POSIX tmpnam function doesn't work.
     my $name = "perltidy.TMP";
     if ( $^O =~ /win32|dos/i || $^O eq 'VMS' || $^O eq 'MacOs' ) {
@@ -301,119 +300,117 @@ sub make_temporary_filename {
 # messages.  It writes a .LOG file, which may be saved with a
 # '-log' or a '-g' flag.
 
-{
+sub perltidy {
 
-    # variables needed by interrupt handler:
-    my $tokenizer;
-    my $input_file;
+    my %defaults = (
+        argv                  => undef,
+        destination           => undef,
+        formatter             => undef,
+        logfile               => undef,
+        errorfile             => undef,
+        perltidyrc            => undef,
+        source                => undef,
+        stderr                => undef,
+        dump_options          => undef,
+        dump_options_type     => undef,
+        dump_getopt_flags     => undef,
+        dump_options_category => undef,
+        dump_options_range    => undef,
+        dump_abbreviations    => undef,
+        prefilter             => undef,
+        postfilter            => undef,
+    );
 
-    # this routine may be called to give a status report if interrupted.  If a
-    # parameter is given, it will call exit with that parameter.  This is no
-    # longer used because it works under Unix but not under Windows.
-    sub interrupt_handler {
+    # don't overwrite callers ARGV
+    local @ARGV   = @ARGV;
+    local *STDERR = *STDERR;
 
-        my $exit_flag = shift;
-        print STDERR "perltidy interrupted";
-        if ($tokenizer) {
-            my $input_line_number =
-              Perl::Tidy::Tokenizer::get_input_line_number();
-            print STDERR " at line $input_line_number";
-        }
-        if ($input_file) {
+    my %input_hash = @_;
 
-            if   ( ref $input_file ) { print STDERR " of reference to:" }
-            else                     { print STDERR " of file:" }
-            print STDERR " $input_file";
-        }
-        print STDERR "\n";
-        exit $exit_flag if defined($exit_flag);
-    }
-
-    sub perltidy {
-
-        my %defaults = (
-            argv                  => undef,
-            destination           => undef,
-            formatter             => undef,
-            logfile               => undef,
-            errorfile             => undef,
-            perltidyrc            => undef,
-            source                => undef,
-            stderr                => undef,
-            dump_options          => undef,
-            dump_options_type     => undef,
-            dump_getopt_flags     => undef,
-            dump_options_category => undef,
-            dump_options_range    => undef,
-            dump_abbreviations    => undef,
-            prefilter             => undef,
-            postfilter            => undef,
-        );
-
-        # don't overwrite callers ARGV
-        local @ARGV = @ARGV;
-
-        my %input_hash = @_;
-
-        if ( my @bad_keys = grep { !exists $defaults{$_} } keys %input_hash ) {
-            local $" = ')(';
-            my @good_keys = sort keys %defaults;
-            @bad_keys = sort @bad_keys;
-            confess <<EOM;
+    if ( my @bad_keys = grep { !exists $defaults{$_} } keys %input_hash ) {
+        local $" = ')(';
+        my @good_keys = sort keys %defaults;
+        @bad_keys = sort @bad_keys;
+        confess <<EOM;
 ------------------------------------------------------------------------
 Unknown perltidy parameter : (@bad_keys)
 perltidy only understands : (@good_keys)
 ------------------------------------------------------------------------
 
 EOM
-        }
+    }
 
-        my $get_hash_ref = sub {
-            my ($key) = @_;
-            my $hash_ref = $input_hash{$key};
-            if ( defined($hash_ref) ) {
-                unless ( ref($hash_ref) eq 'HASH' ) {
-                    my $what = ref($hash_ref);
-                    my $but_is =
-                      $what ? "but is ref to $what" : "but is not a reference";
-                    croak <<EOM;
+    my $get_hash_ref = sub {
+        my ($key) = @_;
+        my $hash_ref = $input_hash{$key};
+        if ( defined($hash_ref) ) {
+            unless ( ref($hash_ref) eq 'HASH' ) {
+                my $what = ref($hash_ref);
+                my $but_is =
+                  $what ? "but is ref to $what" : "but is not a reference";
+                croak <<EOM;
 ------------------------------------------------------------------------
 error in call to perltidy:
 -$key must be reference to HASH $but_is
 ------------------------------------------------------------------------
 EOM
-                }
             }
-            return $hash_ref;
-        };
+        }
+        return $hash_ref;
+    };
 
-        %input_hash = ( %defaults, %input_hash );
-        my $argv               = $input_hash{'argv'};
-        my $destination_stream = $input_hash{'destination'};
-        my $errorfile_stream   = $input_hash{'errorfile'};
-        my $logfile_stream     = $input_hash{'logfile'};
-        my $perltidyrc_stream  = $input_hash{'perltidyrc'};
-        my $source_stream      = $input_hash{'source'};
-        my $stderr_stream      = $input_hash{'stderr'};
-        my $user_formatter     = $input_hash{'formatter'};
-        my $prefilter          = $input_hash{'prefilter'};
-        my $postfilter         = $input_hash{'postfilter'};
+    %input_hash = ( %defaults, %input_hash );
+    my $argv               = $input_hash{'argv'};
+    my $destination_stream = $input_hash{'destination'};
+    my $errorfile_stream   = $input_hash{'errorfile'};
+    my $logfile_stream     = $input_hash{'logfile'};
+    my $perltidyrc_stream  = $input_hash{'perltidyrc'};
+    my $source_stream      = $input_hash{'source'};
+    my $stderr_stream      = $input_hash{'stderr'};
+    my $user_formatter     = $input_hash{'formatter'};
+    my $prefilter          = $input_hash{'prefilter'};
+    my $postfilter         = $input_hash{'postfilter'};
 
-        # various dump parameters
-        my $dump_options_type     = $input_hash{'dump_options_type'};
-        my $dump_options          = $get_hash_ref->('dump_options');
-        my $dump_getopt_flags     = $get_hash_ref->('dump_getopt_flags');
-        my $dump_options_category = $get_hash_ref->('dump_options_category');
-        my $dump_abbreviations    = $get_hash_ref->('dump_abbreviations');
-        my $dump_options_range    = $get_hash_ref->('dump_options_range');
+    if ($stderr_stream) {
+        ( $fh_stderr, my $stderr_file ) =
+          Perl::Tidy::streamhandle( $stderr_stream, 'w' );
+        if ( !$fh_stderr ) {
+            croak <<EOM;
+------------------------------------------------------------------------
+Unable to redirect STDERR to $stderr_stream
+Please check value of -stderr in call to perltidy
+------------------------------------------------------------------------
+EOM
+        }
+    }
+    else {
+        $fh_stderr = *STDERR;
+    }
 
-        # validate dump_options_type
-        if ( defined($dump_options) ) {
-            unless ( defined($dump_options_type) ) {
-                $dump_options_type = 'perltidyrc';
-            }
-            unless ( $dump_options_type =~ /^(perltidyrc|full)$/ ) {
-                croak <<EOM;
+    sub Warn ($) { $fh_stderr->print( $_[0] ); }
+
+    sub Exit ($) {
+        if   ( $_[0] ) { goto ERROR_EXIT }
+        else           { goto NORMAL_EXIT }
+    }
+
+    sub Die ($) { Warn $_[0]; Exit(1); }
+
+    # extract various dump parameters
+    my $dump_options_type     = $input_hash{'dump_options_type'};
+    my $dump_options          = $get_hash_ref->('dump_options');
+    my $dump_getopt_flags     = $get_hash_ref->('dump_getopt_flags');
+    my $dump_options_category = $get_hash_ref->('dump_options_category');
+    my $dump_abbreviations    = $get_hash_ref->('dump_abbreviations');
+    my $dump_options_range    = $get_hash_ref->('dump_options_range');
+
+    # validate dump_options_type
+    if ( defined($dump_options) ) {
+        unless ( defined($dump_options_type) ) {
+            $dump_options_type = 'perltidyrc';
+        }
+        unless ( $dump_options_type =~ /^(perltidyrc|full)$/ ) {
+            croak <<EOM;
 ------------------------------------------------------------------------
 Please check value of -dump_options_type in call to perltidy;
 saw: '$dump_options_type' 
@@ -421,900 +418,874 @@ expecting: 'perltidyrc' or 'full'
 ------------------------------------------------------------------------
 EOM
 
+        }
+    }
+    else {
+        $dump_options_type = "";
+    }
+
+    if ($user_formatter) {
+
+        # if the user defines a formatter, there is no output stream,
+        # but we need a null stream to keep coding simple
+        $destination_stream = Perl::Tidy::DevNull->new();
+    }
+
+    # see if ARGV is overridden
+    if ( defined($argv) ) {
+
+        my $rargv = ref $argv;
+        if ( $rargv eq 'SCALAR' ) { $argv = $$argv; $rargv = undef }
+
+        # ref to ARRAY
+        if ($rargv) {
+            if ( $rargv eq 'ARRAY' ) {
+                @ARGV = @$argv;
             }
-        }
-        else {
-            $dump_options_type = "";
-        }
-
-        if ($user_formatter) {
-
-            # if the user defines a formatter, there is no output stream,
-            # but we need a null stream to keep coding simple
-            $destination_stream = Perl::Tidy::DevNull->new();
-        }
-
-        # see if ARGV is overridden
-        if ( defined($argv) ) {
-
-            my $rargv = ref $argv;
-            if ( $rargv eq 'SCALAR' ) { $argv = $$argv; $rargv = undef }
-
-            # ref to ARRAY
-            if ($rargv) {
-                if ( $rargv eq 'ARRAY' ) {
-                    @ARGV = @$argv;
-                }
-                else {
-                    croak <<EOM;
+            else {
+                croak <<EOM;
 ------------------------------------------------------------------------
 Please check value of -argv in call to perltidy;
 it must be a string or ref to ARRAY but is: $rargv
 ------------------------------------------------------------------------
 EOM
-                }
             }
+        }
 
-            # string
-            else {
-                my ( $rargv, $msg ) = parse_args($argv);
-                if ($msg) {
-                    die <<EOM;
+        # string
+        else {
+            my ( $rargv, $msg ) = parse_args($argv);
+            if ($msg) {
+                Die <<EOM;
 Error parsing this string passed to to perltidy with 'argv': 
 $msg
 EOM
-                }
-                @ARGV = @{$rargv};
             }
+            @ARGV = @{$rargv};
         }
+    }
 
-        # redirect STDERR if requested
-        if ($stderr_stream) {
-            my $ref_type = ref($stderr_stream);
-            if ( $ref_type eq 'SCALAR' or $ref_type eq 'ARRAY' ) {
-                croak <<EOM;
-------------------------------------------------------------------------
-You are trying to redirect STDERR to a reference of type $ref_type
-It can only be redirected to a file
-Please check value of -stderr in call to perltidy
-------------------------------------------------------------------------
-EOM
+    my $rpending_complaint;
+    $$rpending_complaint = "";
+    my $rpending_logfile_message;
+    $$rpending_logfile_message = "";
+
+    my ( $is_Windows, $Windows_type ) = look_for_Windows($rpending_complaint);
+
+    # VMS file names are restricted to a 40.40 format, so we append _tdy
+    # instead of .tdy, etc. (but see also sub check_vms_filename)
+    my $dot;
+    my $dot_pattern;
+    if ( $^O eq 'VMS' ) {
+        $dot         = '_';
+        $dot_pattern = '_';
+    }
+    else {
+        $dot         = '.';
+        $dot_pattern = '\.';    # must escape for use in regex
+    }
+
+    #---------------------------------------------------------------
+    # get command line options
+    #---------------------------------------------------------------
+    my ( $rOpts, $config_file, $rraw_options, $saw_extrude, $roption_string,
+        $rexpansion, $roption_category, $roption_range )
+      = process_command_line(
+        $perltidyrc_stream,  $is_Windows, $Windows_type,
+        $rpending_complaint, $dump_options_type,
+      );
+
+    #---------------------------------------------------------------
+    # Handle requests to dump information
+    #---------------------------------------------------------------
+
+    # return or exit immediately after all dumps
+    my $quit_now = 0;
+
+    # Getopt parameters and their flags
+    if ( defined($dump_getopt_flags) ) {
+        $quit_now = 1;
+        foreach my $op ( @{$roption_string} ) {
+            my $opt  = $op;
+            my $flag = "";
+
+            # Examples:
+            #  some-option=s
+            #  some-option=i
+            #  some-option:i
+            #  some-option!
+            if ( $opt =~ /(.*)(!|=.*|:.*)$/ ) {
+                $opt  = $1;
+                $flag = $2;
             }
-            my ( $fh_stderr, $stderr_file ) =
-              Perl::Tidy::streamhandle( $stderr_stream, 'w' );
-            if ($fh_stderr) { *STDERR = $fh_stderr }
-            else {
-                croak <<EOM;
-------------------------------------------------------------------------
-Unable to redirect STDERR to $stderr_stream
-Please check value of -stderr in call to perltidy
-------------------------------------------------------------------------
-EOM
-            }
+            $dump_getopt_flags->{$opt} = $flag;
         }
+    }
 
-        my $rpending_complaint;
-        $$rpending_complaint = "";
-        my $rpending_logfile_message;
-        $$rpending_logfile_message = "";
+    if ( defined($dump_options_category) ) {
+        $quit_now = 1;
+        %{$dump_options_category} = %{$roption_category};
+    }
 
-        my ( $is_Windows, $Windows_type ) =
-          look_for_Windows($rpending_complaint);
+    if ( defined($dump_options_range) ) {
+        $quit_now = 1;
+        %{$dump_options_range} = %{$roption_range};
+    }
 
-        # VMS file names are restricted to a 40.40 format, so we append _tdy
-        # instead of .tdy, etc. (but see also sub check_vms_filename)
-        my $dot;
-        my $dot_pattern;
-        if ( $^O eq 'VMS' ) {
-            $dot         = '_';
-            $dot_pattern = '_';
+    if ( defined($dump_abbreviations) ) {
+        $quit_now = 1;
+        %{$dump_abbreviations} = %{$rexpansion};
+    }
+
+    if ( defined($dump_options) ) {
+        $quit_now = 1;
+        %{$dump_options} = %{$rOpts};
+    }
+
+    Exit 0 if ($quit_now);
+
+    # make printable string of options for this run as possible diagnostic
+    my $readable_options = readable_options( $rOpts, $roption_string );
+
+    # dump from command line
+    if ( $rOpts->{'dump-options'} ) {
+        print STDOUT $readable_options;
+        Exit 0;
+    }
+
+    #---------------------------------------------------------------
+    # check parameters and their interactions
+    #---------------------------------------------------------------
+    my $tabsize =
+      check_options( $rOpts, $is_Windows, $Windows_type, $rpending_complaint );
+
+    if ($user_formatter) {
+        $rOpts->{'format'} = 'user';
+    }
+
+    # there must be one entry here for every possible format
+    my %default_file_extension = (
+        tidy => 'tdy',
+        html => 'html',
+        user => '',
+    );
+
+    # be sure we have a valid output format
+    unless ( exists $default_file_extension{ $rOpts->{'format'} } ) {
+        my $formats = join ' ',
+          sort map { "'" . $_ . "'" } keys %default_file_extension;
+        my $fmt = $rOpts->{'format'};
+        Die "-format='$fmt' but must be one of: $formats\n";
+    }
+
+    my $output_extension = make_extension( $rOpts->{'output-file-extension'},
+        $default_file_extension{ $rOpts->{'format'} }, $dot );
+
+    # If the backup extension contains a / character then the backup should
+    # be deleted when the -b option is used.   On older versions of
+    # perltidy this will generate an error message due to an illegal
+    # file name.
+    #
+    # A backup file will still be generated but will be deleted
+    # at the end.  If -bext='/' then this extension will be
+    # the default 'bak'.  Otherwise it will be whatever characters
+    # remains after all '/' characters are removed.  For example:
+    # -bext         extension     slashes
+    #  '/'          bak           1
+    #  '/delete'    delete        1
+    #  'delete/'    delete        1
+    #  '/dev/null'  devnull       2    (Currently not allowed)
+    my $bext = $rOpts->{'backup-file-extension'};
+    my $delete_backup = ( $rOpts->{'backup-file-extension'} =~ s/\///g );
+
+    # At present only one forward slash is allowed.  In the future multiple
+    # slashes may be allowed to allow for other options
+    if ( $delete_backup > 1 ) {
+        Die "-bext=$bext contains more than one '/'\n";
+    }
+
+    my $backup_extension =
+      make_extension( $rOpts->{'backup-file-extension'}, 'bak', $dot );
+
+    my $html_toc_extension =
+      make_extension( $rOpts->{'html-toc-extension'}, 'toc', $dot );
+
+    my $html_src_extension =
+      make_extension( $rOpts->{'html-src-extension'}, 'src', $dot );
+
+    # check for -b option;
+    # silently ignore unless beautify mode
+    my $in_place_modify = $rOpts->{'backup-and-modify-in-place'}
+      && $rOpts->{'format'} eq 'tidy';
+
+    # turn off -b with warnings in case of conflicts with other options
+    if ($in_place_modify) {
+        if ( $rOpts->{'standard-output'} ) {
+            Warn "Ignoring -b; you may not use -b and -st together\n";
+            $in_place_modify = 0;
         }
-        else {
-            $dot         = '.';
-            $dot_pattern = '\.';    # must escape for use in regex
-        }
-
-        #---------------------------------------------------------------
-        # get command line options
-        #---------------------------------------------------------------
-        my ( $rOpts, $config_file, $rraw_options, $saw_extrude, $roption_string,
-            $rexpansion, $roption_category, $roption_range )
-          = process_command_line(
-            $perltidyrc_stream,  $is_Windows, $Windows_type,
-            $rpending_complaint, $dump_options_type,
-          );
-
-        #---------------------------------------------------------------
-        # Handle requests to dump information
-        #---------------------------------------------------------------
-
-        # return or exit immediately after all dumps
-        my $quit_now = 0;
-
-        # Getopt parameters and their flags
-        if ( defined($dump_getopt_flags) ) {
-            $quit_now = 1;
-            foreach my $op ( @{$roption_string} ) {
-                my $opt  = $op;
-                my $flag = "";
-
-                # Examples:
-                #  some-option=s
-                #  some-option=i
-                #  some-option:i
-                #  some-option!
-                if ( $opt =~ /(.*)(!|=.*|:.*)$/ ) {
-                    $opt  = $1;
-                    $flag = $2;
-                }
-                $dump_getopt_flags->{$opt} = $flag;
-            }
-        }
-
-        if ( defined($dump_options_category) ) {
-            $quit_now = 1;
-            %{$dump_options_category} = %{$roption_category};
-        }
-
-        if ( defined($dump_options_range) ) {
-            $quit_now = 1;
-            %{$dump_options_range} = %{$roption_range};
-        }
-
-        if ( defined($dump_abbreviations) ) {
-            $quit_now = 1;
-            %{$dump_abbreviations} = %{$rexpansion};
-        }
-
-        if ( defined($dump_options) ) {
-            $quit_now = 1;
-            %{$dump_options} = %{$rOpts};
-        }
-
-        return if ($quit_now);
-
-        # make printable string of options for this run as possible diagnostic
-        my $readable_options = readable_options( $rOpts, $roption_string );
-
-        # dump from command line
-        if ( $rOpts->{'dump-options'} ) {
-            print STDOUT $readable_options;
-            exit 0;
-        }
-
-        #---------------------------------------------------------------
-        # check parameters and their interactions
-        #---------------------------------------------------------------
-        check_options( $rOpts, $is_Windows, $Windows_type,
-            $rpending_complaint );
-
-        if ($user_formatter) {
-            $rOpts->{'format'} = 'user';
-        }
-
-        # there must be one entry here for every possible format
-        my %default_file_extension = (
-            tidy => 'tdy',
-            html => 'html',
-            user => '',
-        );
-
-        # be sure we have a valid output format
-        unless ( exists $default_file_extension{ $rOpts->{'format'} } ) {
-            my $formats = join ' ',
-              sort map { "'" . $_ . "'" } keys %default_file_extension;
-            my $fmt = $rOpts->{'format'};
-            die "-format='$fmt' but must be one of: $formats\n";
-        }
-
-        my $output_extension =
-          make_extension( $rOpts->{'output-file-extension'},
-            $default_file_extension{ $rOpts->{'format'} }, $dot );
-
-        # If the backup extension contains a / character then the backup should
-        # be deleted when the -b option is used.   On older versions of
-        # perltidy this will generate an error message due to an illegal
-        # file name.
-        #
-        # A backup file will still be generated but will be deleted
-        # at the end.  If -bext='/' then this extension will be
-        # the default 'bak'.  Otherwise it will be whatever characters
-        # remains after all '/' characters are removed.  For example:
-        # -bext         extension     slashes
-        #  '/'          bak           1
-        #  '/delete'    delete        1
-        #  'delete/'    delete        1
-        #  '/dev/null'  devnull       2    (Currently not allowed)
-        my $bext = $rOpts->{'backup-file-extension'};
-        my $delete_backup = ( $rOpts->{'backup-file-extension'} =~ s/\///g );
-
-        # At present only one forward slash is allowed.  In the future multiple
-        # slashes may be allowed to allow for other options
-        if ( $delete_backup > 1 ) {
-            die "-bext=$bext contains more than one '/'\n";
-        }
-
-        my $backup_extension =
-          make_extension( $rOpts->{'backup-file-extension'}, 'bak', $dot );
-
-        my $html_toc_extension =
-          make_extension( $rOpts->{'html-toc-extension'}, 'toc', $dot );
-
-        my $html_src_extension =
-          make_extension( $rOpts->{'html-src-extension'}, 'src', $dot );
-
-        # check for -b option;
-        # silently ignore unless beautify mode
-        my $in_place_modify = $rOpts->{'backup-and-modify-in-place'}
-          && $rOpts->{'format'} eq 'tidy';
-
-        # turn off -b with warnings in case of conflicts with other options
-        if ($in_place_modify) {
-            if ( $rOpts->{'standard-output'} ) {
-                warn "Ignoring -b; you may not use -b and -st together\n";
-                $in_place_modify = 0;
-            }
-            if ($destination_stream) {
-                warn
+        if ($destination_stream) {
+            Warn
 "Ignoring -b; you may not specify a destination stream and -b together\n";
-                $in_place_modify = 0;
-            }
-            if ( ref($source_stream) ) {
-                warn
+            $in_place_modify = 0;
+        }
+        if ( ref($source_stream) ) {
+            Warn
 "Ignoring -b; you may not specify a source array and -b together\n";
-                $in_place_modify = 0;
-            }
-            if ( $rOpts->{'outfile'} ) {
-                warn "Ignoring -b; you may not use -b and -o together\n";
-                $in_place_modify = 0;
-            }
-            if ( defined( $rOpts->{'output-path'} ) ) {
-                warn "Ignoring -b; you may not use -b and -opath together\n";
-                $in_place_modify = 0;
-            }
+            $in_place_modify = 0;
         }
+        if ( $rOpts->{'outfile'} ) {
+            Warn "Ignoring -b; you may not use -b and -o together\n";
+            $in_place_modify = 0;
+        }
+        if ( defined( $rOpts->{'output-path'} ) ) {
+            Warn "Ignoring -b; you may not use -b and -opath together\n";
+            $in_place_modify = 0;
+        }
+    }
 
-        Perl::Tidy::Formatter::check_options($rOpts);
-        if ( $rOpts->{'format'} eq 'html' ) {
-            Perl::Tidy::HtmlWriter->check_options($rOpts);
-        }
+    Perl::Tidy::Formatter::check_options($rOpts);
+    if ( $rOpts->{'format'} eq 'html' ) {
+        Perl::Tidy::HtmlWriter->check_options($rOpts);
+    }
 
-        # make the pattern of file extensions that we shouldn't touch
-        my $forbidden_file_extensions = "(($dot_pattern)(LOG|DEBUG|ERR|TEE)";
-        if ($output_extension) {
-            my $ext = quotemeta($output_extension);
-            $forbidden_file_extensions .= "|$ext";
-        }
-        if ( $in_place_modify && $backup_extension ) {
-            my $ext = quotemeta($backup_extension);
-            $forbidden_file_extensions .= "|$ext";
-        }
-        $forbidden_file_extensions .= ')$';
+    # make the pattern of file extensions that we shouldn't touch
+    my $forbidden_file_extensions = "(($dot_pattern)(LOG|DEBUG|ERR|TEE)";
+    if ($output_extension) {
+        my $ext = quotemeta($output_extension);
+        $forbidden_file_extensions .= "|$ext";
+    }
+    if ( $in_place_modify && $backup_extension ) {
+        my $ext = quotemeta($backup_extension);
+        $forbidden_file_extensions .= "|$ext";
+    }
+    $forbidden_file_extensions .= ')$';
 
-        # Create a diagnostics object if requested;
-        # This is only useful for code development
-        my $diagnostics_object = undef;
-        if ( $rOpts->{'DIAGNOSTICS'} ) {
-            $diagnostics_object = Perl::Tidy::Diagnostics->new();
-        }
+    # Create a diagnostics object if requested;
+    # This is only useful for code development
+    my $diagnostics_object = undef;
+    if ( $rOpts->{'DIAGNOSTICS'} ) {
+        $diagnostics_object = Perl::Tidy::Diagnostics->new();
+    }
 
-        # no filenames should be given if input is from an array
-        if ($source_stream) {
-            if ( @ARGV > 0 ) {
-                die
+    # no filenames should be given if input is from an array
+    if ($source_stream) {
+        if ( @ARGV > 0 ) {
+            Die
 "You may not specify any filenames when a source array is given\n";
-            }
-
-            # we'll stuff the source array into ARGV
-            unshift( @ARGV, $source_stream );
-
-            # No special treatment for source stream which is a filename.
-            # This will enable checks for binary files and other bad stuff.
-            $source_stream = undef unless ref($source_stream);
         }
 
-        # use stdin by default if no source array and no args
+        # we'll stuff the source array into ARGV
+        unshift( @ARGV, $source_stream );
+
+        # No special treatment for source stream which is a filename.
+        # This will enable checks for binary files and other bad stuff.
+        $source_stream = undef unless ref($source_stream);
+    }
+
+    # use stdin by default if no source array and no args
+    else {
+        unshift( @ARGV, '-' ) unless @ARGV;
+    }
+
+    #---------------------------------------------------------------
+    # Ready to go...
+    # main loop to process all files in argument list
+    #---------------------------------------------------------------
+    my $number_of_files = @ARGV;
+    my $formatter       = undef;
+    my $tokenizer       = undef;
+    while ( my $input_file = shift @ARGV ) {
+        my $fileroot;
+        my $input_file_permissions;
+
+        #---------------------------------------------------------------
+        # prepare this input stream
+        #---------------------------------------------------------------
+        if ($source_stream) {
+            $fileroot = "perltidy";
+        }
+        elsif ( $input_file eq '-' ) {    # '-' indicates input from STDIN
+            $fileroot = "perltidy";       # root name to use for .ERR, .LOG, etc
+            $in_place_modify = 0;
+        }
         else {
-            unshift( @ARGV, '-' ) unless @ARGV;
-        }
+            $fileroot = $input_file;
+            unless ( -e $input_file ) {
 
-        #---------------------------------------------------------------
-        # Ready to go...
-        # main loop to process all files in argument list
-        #---------------------------------------------------------------
-        my $number_of_files = @ARGV;
-        my $formatter       = undef;
-        $tokenizer = undef;
-        while ( $input_file = shift @ARGV ) {
-            my $fileroot;
-            my $input_file_permissions;
+                # file doesn't exist - check for a file glob
+                if ( $input_file =~ /([\?\*\[\{])/ ) {
 
-            #---------------------------------------------------------------
-            # prepare this input stream
-            #---------------------------------------------------------------
-            if ($source_stream) {
-                $fileroot = "perltidy";
-            }
-            elsif ( $input_file eq '-' ) {    # '-' indicates input from STDIN
-                $fileroot = "perltidy";   # root name to use for .ERR, .LOG, etc
-                $in_place_modify = 0;
-            }
-            else {
-                $fileroot = $input_file;
-                unless ( -e $input_file ) {
-
-                    # file doesn't exist - check for a file glob
-                    if ( $input_file =~ /([\?\*\[\{])/ ) {
-
-                        # Windows shell may not remove quotes, so do it
-                        my $input_file = $input_file;
-                        if ( $input_file =~ /^\'(.+)\'$/ ) { $input_file = $1 }
-                        if ( $input_file =~ /^\"(.+)\"$/ ) { $input_file = $1 }
-                        my $pattern = fileglob_to_re($input_file);
-                        ##eval "/$pattern/";
-                        if ( !$@ && opendir( DIR, './' ) ) {
-                            my @files =
-                              grep { /$pattern/ && !-d $_ } readdir(DIR);
-                            closedir(DIR);
-                            if (@files) {
-                                unshift @ARGV, @files;
-                                next;
-                            }
+                    # Windows shell may not remove quotes, so do it
+                    my $input_file = $input_file;
+                    if ( $input_file =~ /^\'(.+)\'$/ ) { $input_file = $1 }
+                    if ( $input_file =~ /^\"(.+)\"$/ ) { $input_file = $1 }
+                    my $pattern = fileglob_to_re($input_file);
+                    ##eval "/$pattern/";
+                    if ( !$@ && opendir( DIR, './' ) ) {
+                        my @files =
+                          grep { /$pattern/ && !-d $_ } readdir(DIR);
+                        closedir(DIR);
+                        if (@files) {
+                            unshift @ARGV, @files;
+                            next;
                         }
                     }
-                    print "skipping file: '$input_file': no matches found\n";
-                    next;
                 }
+                Warn "skipping file: '$input_file': no matches found\n";
+                next;
+            }
 
-                unless ( -f $input_file ) {
-                    print "skipping file: $input_file: not a regular file\n";
-                    next;
-                }
+            unless ( -f $input_file ) {
+                Warn "skipping file: $input_file: not a regular file\n";
+                next;
+            }
 
-                # As a safety precaution, skip zero length files.
-                # If for example a source file got clobberred somehow,
-                # the old .tdy or .bak files might still exist so we
-                # shouldn't overwrite them with zero length files.
-                unless ( -s $input_file ) {
-                    print "skipping file: $input_file: Zero size\n";
-                    next;
-                }
+            # As a safety precaution, skip zero length files.
+            # If for example a source file got clobberred somehow,
+            # the old .tdy or .bak files might still exist so we
+            # shouldn't overwrite them with zero length files.
+            unless ( -s $input_file ) {
+                Warn "skipping file: $input_file: Zero size\n";
+                next;
+            }
 
-                unless ( ( -T $input_file ) || $rOpts->{'force-read-binary'} ) {
-                    print
-"skipping file: $input_file: Non-text (override with -f)\n";
-                    next;
-                }
+            unless ( ( -T $input_file ) || $rOpts->{'force-read-binary'} ) {
+                Warn
+                  "skipping file: $input_file: Non-text (override with -f)\n";
+                next;
+            }
 
-                # we should have a valid filename now
-                $fileroot               = $input_file;
-                $input_file_permissions = ( stat $input_file )[2] & 07777;
+            # we should have a valid filename now
+            $fileroot               = $input_file;
+            $input_file_permissions = ( stat $input_file )[2] & 07777;
 
-                if ( $^O eq 'VMS' ) {
-                    ( $fileroot, $dot ) = check_vms_filename($fileroot);
-                }
+            if ( $^O eq 'VMS' ) {
+                ( $fileroot, $dot ) = check_vms_filename($fileroot);
+            }
 
-                # add option to change path here
-                if ( defined( $rOpts->{'output-path'} ) ) {
+            # add option to change path here
+            if ( defined( $rOpts->{'output-path'} ) ) {
 
-                    my ( $base, $old_path ) = fileparse($fileroot);
-                    my $new_path = $rOpts->{'output-path'};
-                    unless ( -d $new_path ) {
-                        unless ( mkdir $new_path, 0777 ) {
-                            die "unable to create directory $new_path: $!\n";
-                        }
+                my ( $base, $old_path ) = fileparse($fileroot);
+                my $new_path = $rOpts->{'output-path'};
+                unless ( -d $new_path ) {
+                    unless ( mkdir $new_path, 0777 ) {
+                        Die "unable to create directory $new_path: $!\n";
                     }
-                    my $path = $new_path;
-                    $fileroot = catfile( $path, $base );
-                    unless ($fileroot) {
-                        die <<EOM;
+                }
+                my $path = $new_path;
+                $fileroot = catfile( $path, $base );
+                unless ($fileroot) {
+                    Die <<EOM;
 ------------------------------------------------------------------------
 Problem combining $new_path and $base to make a filename; check -opath
 ------------------------------------------------------------------------
 EOM
-                    }
                 }
             }
+        }
 
-            # Skip files with same extension as the output files because
-            # this can lead to a messy situation with files like
-            # script.tdy.tdy.tdy ... or worse problems ...  when you
-            # rerun perltidy over and over with wildcard input.
-            if (
-                !$source_stream
-                && (   $input_file =~ /$forbidden_file_extensions/o
-                    || $input_file eq 'DIAGNOSTICS' )
-              )
-            {
-                print "skipping file: $input_file: wrong extension\n";
-                next;
+        # Skip files with same extension as the output files because
+        # this can lead to a messy situation with files like
+        # script.tdy.tdy.tdy ... or worse problems ...  when you
+        # rerun perltidy over and over with wildcard input.
+        if (
+            !$source_stream
+            && (   $input_file =~ /$forbidden_file_extensions/o
+                || $input_file eq 'DIAGNOSTICS' )
+          )
+        {
+            Warn "skipping file: $input_file: wrong extension\n";
+            next;
+        }
+
+        # the 'source_object' supplies a method to read the input file
+        my $source_object =
+          Perl::Tidy::LineSource->new( $input_file, $rOpts,
+            $rpending_logfile_message );
+        next unless ($source_object);
+
+        # Prefilters and postfilters: The prefilter is a code reference
+        # that will be applied to the source before tidying, and the
+        # postfilter is a code reference to the result before outputting.
+        if ($prefilter) {
+            my $buf = '';
+            while ( my $line = $source_object->get_line() ) {
+                $buf .= $line;
             }
+            $buf = $prefilter->($buf);
 
-            # the 'source_object' supplies a method to read the input file
-            my $source_object =
-              Perl::Tidy::LineSource->new( $input_file, $rOpts,
+            $source_object = Perl::Tidy::LineSource->new( \$buf, $rOpts,
                 $rpending_logfile_message );
-            next unless ($source_object);
+        }
 
-            # Prefilters and postfilters: The prefilter is a code reference
-            # that will be applied to the source before tidying, and the
-            # postfilter is a code reference to the result before outputting.
-            if ($prefilter) {
-                my $buf = '';
-                while ( my $line = $source_object->get_line() ) {
-                    $buf .= $line;
+        # register this file name with the Diagnostics package
+        $diagnostics_object->set_input_file($input_file)
+          if $diagnostics_object;
+
+        #---------------------------------------------------------------
+        # prepare the output stream
+        #---------------------------------------------------------------
+        my $output_file = undef;
+        my $actual_output_extension;
+
+        if ( $rOpts->{'outfile'} ) {
+
+            if ( $number_of_files <= 1 ) {
+
+                if ( $rOpts->{'standard-output'} ) {
+                    Die "You may not use -o and -st together\n";
                 }
-                $buf = $prefilter->($buf);
-
-                $source_object = Perl::Tidy::LineSource->new( \$buf, $rOpts,
-                    $rpending_logfile_message );
-            }
-
-            # register this file name with the Diagnostics package
-            $diagnostics_object->set_input_file($input_file)
-              if $diagnostics_object;
-
-            #---------------------------------------------------------------
-            # prepare the output stream
-            #---------------------------------------------------------------
-            my $output_file = undef;
-            my $actual_output_extension;
-
-            if ( $rOpts->{'outfile'} ) {
-
-                if ( $number_of_files <= 1 ) {
-
-                    if ( $rOpts->{'standard-output'} ) {
-                        die "You may not use -o and -st together\n";
-                    }
-                    elsif ($destination_stream) {
-                        die
+                elsif ($destination_stream) {
+                    Die
 "You may not specify a destination array and -o together\n";
-                    }
-                    elsif ( defined( $rOpts->{'output-path'} ) ) {
-                        die "You may not specify -o and -opath together\n";
-                    }
-                    elsif ( defined( $rOpts->{'output-file-extension'} ) ) {
-                        die "You may not specify -o and -oext together\n";
-                    }
-                    $output_file = $rOpts->{outfile};
+                }
+                elsif ( defined( $rOpts->{'output-path'} ) ) {
+                    Die "You may not specify -o and -opath together\n";
+                }
+                elsif ( defined( $rOpts->{'output-file-extension'} ) ) {
+                    Die "You may not specify -o and -oext together\n";
+                }
+                $output_file = $rOpts->{outfile};
 
-                    # make sure user gives a file name after -o
-                    if ( $output_file =~ /^-/ ) {
-                        die "You must specify a valid filename after -o\n";
-                    }
+                # make sure user gives a file name after -o
+                if ( $output_file =~ /^-/ ) {
+                    Die "You must specify a valid filename after -o\n";
+                }
 
-                    # do not overwrite input file with -o
-                    if ( defined($input_file_permissions)
-                        && ( $output_file eq $input_file ) )
-                    {
-                        die
-                          "Use 'perltidy -b $input_file' to modify in-place\n";
-                    }
+                # do not overwrite input file with -o
+                if ( defined($input_file_permissions)
+                    && ( $output_file eq $input_file ) )
+                {
+                    Die "Use 'perltidy -b $input_file' to modify in-place\n";
                 }
-                else {
-                    die "You may not use -o with more than one input file\n";
-                }
-            }
-            elsif ( $rOpts->{'standard-output'} ) {
-                if ($destination_stream) {
-                    die
-"You may not specify a destination array and -st together\n";
-                }
-                $output_file = '-';
-
-                if ( $number_of_files <= 1 ) {
-                }
-                else {
-                    die "You may not use -st with more than one input file\n";
-                }
-            }
-            elsif ($destination_stream) {
-                $output_file = $destination_stream;
-            }
-            elsif ($source_stream) {  # source but no destination goes to stdout
-                $output_file = '-';
-            }
-            elsif ( $input_file eq '-' ) {
-                $output_file = '-';
             }
             else {
-                if ($in_place_modify) {
-                    $output_file = IO::File->new_tmpfile()
-                      or die "cannot open temp file for -b option: $!\n";
-                }
-                else {
-                    $actual_output_extension = $output_extension;
-                    $output_file             = $fileroot . $output_extension;
-                }
+                Die "You may not use -o with more than one input file\n";
             }
-
-            # the 'sink_object' knows how to write the output file
-            my $tee_file = $fileroot . $dot . "TEE";
-
-            my $line_separator = $rOpts->{'output-line-ending'};
-            if ( $rOpts->{'preserve-line-endings'} ) {
-                $line_separator = find_input_line_ending($input_file);
+        }
+        elsif ( $rOpts->{'standard-output'} ) {
+            if ($destination_stream) {
+                Die
+                  "You may not specify a destination array and -st together\n";
             }
+            $output_file = '-';
 
-            # Eventually all I/O may be done with binmode, but for now it is
-            # only done when a user requests a particular line separator
-            # through the -ple or -ole flags
-            my $binmode = 0;
-            if   ( defined($line_separator) ) { $binmode        = 1 }
-            else                              { $line_separator = "\n" }
+            if ( $number_of_files <= 1 ) {
+            }
+            else {
+                Die "You may not use -st with more than one input file\n";
+            }
+        }
+        elsif ($destination_stream) {
+            $output_file = $destination_stream;
+        }
+        elsif ($source_stream) {    # source but no destination goes to stdout
+            $output_file = '-';
+        }
+        elsif ( $input_file eq '-' ) {
+            $output_file = '-';
+        }
+        else {
+            if ($in_place_modify) {
+                $output_file = IO::File->new_tmpfile()
+                  or Die "cannot open temp file for -b option: $!\n";
+            }
+            else {
+                $actual_output_extension = $output_extension;
+                $output_file             = $fileroot . $output_extension;
+            }
+        }
 
-            my ( $sink_object, $postfilter_buffer );
-            if ($postfilter) {
+        # the 'sink_object' knows how to write the output file
+        my $tee_file = $fileroot . $dot . "TEE";
+
+        my $line_separator = $rOpts->{'output-line-ending'};
+        if ( $rOpts->{'preserve-line-endings'} ) {
+            $line_separator = find_input_line_ending($input_file);
+        }
+
+        # Eventually all I/O may be done with binmode, but for now it is
+        # only done when a user requests a particular line separator
+        # through the -ple or -ole flags
+        my $binmode = 0;
+        if   ( defined($line_separator) ) { $binmode        = 1 }
+        else                              { $line_separator = "\n" }
+
+        my ( $sink_object, $postfilter_buffer );
+        if ($postfilter) {
+            $sink_object =
+              Perl::Tidy::LineSink->new( \$postfilter_buffer, $tee_file,
+                $line_separator, $rOpts, $rpending_logfile_message, $binmode );
+        }
+        else {
+            $sink_object =
+              Perl::Tidy::LineSink->new( $output_file, $tee_file,
+                $line_separator, $rOpts, $rpending_logfile_message, $binmode );
+        }
+
+        #---------------------------------------------------------------
+        # initialize the error logger for this file
+        #---------------------------------------------------------------
+        my $warning_file = $fileroot . $dot . "ERR";
+        if ($errorfile_stream) { $warning_file = $errorfile_stream }
+        my $log_file = $fileroot . $dot . "LOG";
+        if ($logfile_stream) { $log_file = $logfile_stream }
+
+        my $logger_object =
+          Perl::Tidy::Logger->new( $rOpts, $log_file, $warning_file,
+            $fh_stderr, $saw_extrude );
+        write_logfile_header(
+            $rOpts,        $logger_object, $config_file,
+            $rraw_options, $Windows_type,  $readable_options,
+        );
+        if ($$rpending_logfile_message) {
+            $logger_object->write_logfile_entry($$rpending_logfile_message);
+        }
+        if ($$rpending_complaint) {
+            $logger_object->complain($$rpending_complaint);
+        }
+
+        #---------------------------------------------------------------
+        # initialize the debug object, if any
+        #---------------------------------------------------------------
+        my $debugger_object = undef;
+        if ( $rOpts->{DEBUG} ) {
+            $debugger_object =
+              Perl::Tidy::Debugger->new( $fileroot . $dot . "DEBUG" );
+        }
+
+        #---------------------------------------------------------------
+        # loop over iterations for one source stream
+        #---------------------------------------------------------------
+
+        # We will do a convergence test if 3 or more iterations are allowed.
+        # It would be pointless for fewer because we have to make at least
+        # two passes before we can see if we are converged, and the test
+        # would just slow things down.
+        my $max_iterations = $rOpts->{'iterations'};
+        my $convergence_log_message;
+        my %saw_md5;
+        my $do_convergence_test = $max_iterations > 2;
+        if ($do_convergence_test) {
+            eval "use Digest::MD5 qw(md5_hex)";
+            $do_convergence_test = !$@;
+        }
+
+        # save objects to allow redirecting output during iterations
+        my $sink_object_final     = $sink_object;
+        my $debugger_object_final = $debugger_object;
+        my $logger_object_final   = $logger_object;
+
+        for ( my $iter = 1 ; $iter <= $max_iterations ; $iter++ ) {
+
+            # send output stream to temp buffers until last iteration
+            my $sink_buffer;
+            if ( $iter < $max_iterations ) {
                 $sink_object =
-                  Perl::Tidy::LineSink->new( \$postfilter_buffer, $tee_file,
+                  Perl::Tidy::LineSink->new( \$sink_buffer, $tee_file,
                     $line_separator, $rOpts, $rpending_logfile_message,
                     $binmode );
             }
             else {
-                $sink_object =
-                  Perl::Tidy::LineSink->new( $output_file, $tee_file,
-                    $line_separator, $rOpts, $rpending_logfile_message,
-                    $binmode );
+                $sink_object = $sink_object_final;
             }
 
-            #---------------------------------------------------------------
-            # initialize the error logger
-            #---------------------------------------------------------------
-            my $warning_file = $fileroot . $dot . "ERR";
-            if ($errorfile_stream) { $warning_file = $errorfile_stream }
-            my $log_file = $fileroot . $dot . "LOG";
-            if ($logfile_stream) { $log_file = $logfile_stream }
-
-            my $logger_object =
-              Perl::Tidy::Logger->new( $rOpts, $log_file, $warning_file,
-                $saw_extrude );
-            write_logfile_header(
-                $rOpts,        $logger_object, $config_file,
-                $rraw_options, $Windows_type,  $readable_options,
-            );
-            if ($$rpending_logfile_message) {
-                $logger_object->write_logfile_entry($$rpending_logfile_message);
-            }
-            if ($$rpending_complaint) {
-                $logger_object->complain($$rpending_complaint);
+            # Save logger, debugger output only on pass 1 because:
+            # (1) line number references must be to the starting
+            # source, not an intermediate result, and
+            # (2) we need to know if there are errors so we can stop the
+            # iterations early if necessary.
+            if ( $iter > 1 ) {
+                $debugger_object = undef;
+                $logger_object   = undef;
             }
 
-            #---------------------------------------------------------------
-            # initialize the debug object, if any
-            #---------------------------------------------------------------
-            my $debugger_object = undef;
-            if ( $rOpts->{DEBUG} ) {
-                $debugger_object =
-                  Perl::Tidy::Debugger->new( $fileroot . $dot . "DEBUG" );
+            #------------------------------------------------------------
+            # create a formatter for this file : html writer or
+            # pretty printer
+            #------------------------------------------------------------
+
+            # we have to delete any old formatter because, for safety,
+            # the formatter will check to see that there is only one.
+            $formatter = undef;
+
+            if ($user_formatter) {
+                $formatter = $user_formatter;
             }
-
-            #---------------------------------------------------------------
-            # loop over iterations for one source stream
-            #---------------------------------------------------------------
-
-            # We will do a convergence test if 3 or more iterations are allowed.
-            # It would be pointless for fewer because we have to make at least
-            # two passes before we can see if we are converged, and the test
-            # would just slow things down.
-            my $max_iterations = $rOpts->{'iterations'};
-            my $convergence_log_message;
-            my %saw_md5;
-            my $do_convergence_test = $max_iterations > 2;
-            if ($do_convergence_test) {
-                eval "use Digest::MD5 qw(md5_hex)";
-                $do_convergence_test = !$@;
+            elsif ( $rOpts->{'format'} eq 'html' ) {
+                $formatter =
+                  Perl::Tidy::HtmlWriter->new( $fileroot, $output_file,
+                    $actual_output_extension, $html_toc_extension,
+                    $html_src_extension );
             }
-
-            # save objects to allow redirecting output during iterations
-            my $sink_object_final     = $sink_object;
-            my $debugger_object_final = $debugger_object;
-            my $logger_object_final   = $logger_object;
-
-            for ( my $iter = 1 ; $iter <= $max_iterations ; $iter++ ) {
-
-                # send output stream to temp buffers until last iteration
-                my $sink_buffer;
-                if ( $iter < $max_iterations ) {
-                    $sink_object =
-                      Perl::Tidy::LineSink->new( \$sink_buffer, $tee_file,
-                        $line_separator, $rOpts, $rpending_logfile_message,
-                        $binmode );
-                }
-                else {
-                    $sink_object = $sink_object_final;
-                }
-
-                # Save logger, debugger output only on pass 1 because:
-                # (1) line number references must be to the starting
-                # source, not an intermediate result, and
-                # (2) we need to know if there are errors so we can stop the
-                # iterations early if necessary.
-                if ( $iter > 1 ) {
-                    $debugger_object = undef;
-                    $logger_object   = undef;
-                }
-
-                #------------------------------------------------------------
-                # create a formatter for this file : html writer or
-                # pretty printer
-                #------------------------------------------------------------
-
-                # we have to delete any old formatter because, for safety,
-                # the formatter will check to see that there is only one.
-                $formatter = undef;
-
-                if ($user_formatter) {
-                    $formatter = $user_formatter;
-                }
-                elsif ( $rOpts->{'format'} eq 'html' ) {
-                    $formatter =
-                      Perl::Tidy::HtmlWriter->new( $fileroot, $output_file,
-                        $actual_output_extension, $html_toc_extension,
-                        $html_src_extension );
-                }
-                elsif ( $rOpts->{'format'} eq 'tidy' ) {
-                    $formatter = Perl::Tidy::Formatter->new(
-                        logger_object      => $logger_object,
-                        diagnostics_object => $diagnostics_object,
-                        sink_object        => $sink_object,
-                    );
-                }
-                else {
-                    die "I don't know how to do -format=$rOpts->{'format'}\n";
-                }
-
-                unless ($formatter) {
-                    die
-                      "Unable to continue with $rOpts->{'format'} formatting\n";
-                }
-
-                #---------------------------------------------------------------
-                # create the tokenizer for this file
-                #---------------------------------------------------------------
-                $tokenizer = undef;    # must destroy old tokenizer
-                $tokenizer = Perl::Tidy::Tokenizer->new(
-                    source_object      => $source_object,
+            elsif ( $rOpts->{'format'} eq 'tidy' ) {
+                $formatter = Perl::Tidy::Formatter->new(
                     logger_object      => $logger_object,
-                    debugger_object    => $debugger_object,
                     diagnostics_object => $diagnostics_object,
-                    starting_level => $rOpts->{'starting-indentation-level'},
-                    tabs           => $rOpts->{'tabs'},
-                    entab_leading_space => $rOpts->{'entab-leading-whitespace'},
-                    indent_columns      => $rOpts->{'indent-columns'},
-                    look_for_hash_bang  => $rOpts->{'look-for-hash-bang'},
-                    look_for_autoloader => $rOpts->{'look-for-autoloader'},
-                    look_for_selfloader => $rOpts->{'look-for-selfloader'},
-                    trim_qw             => $rOpts->{'trim-qw'},
+                    sink_object        => $sink_object,
                 );
+            }
+            else {
+                Die "I don't know how to do -format=$rOpts->{'format'}\n";
+            }
 
-                #---------------------------------------------------------------
-                # now we can do it
-                #---------------------------------------------------------------
-                process_this_file( $tokenizer, $formatter );
+            unless ($formatter) {
+                Die "Unable to continue with $rOpts->{'format'} formatting\n";
+            }
 
-                #---------------------------------------------------------------
-                # close the input source and report errors
-                #---------------------------------------------------------------
-                $source_object->close_input_file();
+            #---------------------------------------------------------------
+            # create the tokenizer for this file
+            #---------------------------------------------------------------
+            $tokenizer = undef;                     # must destroy old tokenizer
+            $tokenizer = Perl::Tidy::Tokenizer->new(
+                source_object      => $source_object,
+                logger_object      => $logger_object,
+                debugger_object    => $debugger_object,
+                diagnostics_object => $diagnostics_object,
+                tabsize            => $tabsize,
 
-                # line source for next iteration (if any) comes from the current
-                # temporary output buffer
-                if ( $iter < $max_iterations ) {
+                starting_level      => $rOpts->{'starting-indentation-level'},
+                indent_columns      => $rOpts->{'indent-columns'},
+                look_for_hash_bang  => $rOpts->{'look-for-hash-bang'},
+                look_for_autoloader => $rOpts->{'look-for-autoloader'},
+                look_for_selfloader => $rOpts->{'look-for-selfloader'},
+                trim_qw             => $rOpts->{'trim-qw'},
 
-                    $sink_object->close_output_file();
-                    $source_object =
-                      Perl::Tidy::LineSource->new( \$sink_buffer, $rOpts,
-                        $rpending_logfile_message );
+                continuation_indentation =>
+                  $rOpts->{'continuation-indentation'},
+                outdent_labels => $rOpts->{'outdent-labels'},
+            );
 
-                    # stop iterations if errors or converged
-                    my $stop_now = $logger_object->{_warning_count};
-                    if ($stop_now) {
-                        $convergence_log_message = <<EOM;
+            #---------------------------------------------------------------
+            # now we can do it
+            #---------------------------------------------------------------
+            process_this_file( $tokenizer, $formatter );
+
+            #---------------------------------------------------------------
+            # close the input source and report errors
+            #---------------------------------------------------------------
+            $source_object->close_input_file();
+
+            # line source for next iteration (if any) comes from the current
+            # temporary output buffer
+            if ( $iter < $max_iterations ) {
+
+                $sink_object->close_output_file();
+                $source_object =
+                  Perl::Tidy::LineSource->new( \$sink_buffer, $rOpts,
+                    $rpending_logfile_message );
+
+                # stop iterations if errors or converged
+                my $stop_now = $logger_object->{_warning_count};
+                if ($stop_now) {
+                    $convergence_log_message = <<EOM;
 Stopping iterations because of errors.                       
 EOM
+                }
+                elsif ($do_convergence_test) {
+                    my $digest = md5_hex($sink_buffer);
+                    if ( !$saw_md5{$digest} ) {
+                        $saw_md5{$digest} = $iter;
                     }
-                    elsif ($do_convergence_test) {
-                        my $digest = md5_hex($sink_buffer);
-                        if ( !$saw_md5{$digest} ) {
-                            $saw_md5{$digest} = $iter;
-                        }
-                        else {
+                    else {
 
-                            # Saw this result before, stop iterating
-                            $stop_now = 1;
-                            my $iterm = $iter - 1;
-                            if ( $saw_md5{$digest} != $iterm ) {
+                        # Saw this result before, stop iterating
+                        $stop_now = 1;
+                        my $iterm = $iter - 1;
+                        if ( $saw_md5{$digest} != $iterm ) {
 
-                                # Blinking (oscillating) between two stable
-                                # end states.  This has happened in the past
-                                # but at present there are no known instances.
-                                $convergence_log_message = <<EOM;
+                            # Blinking (oscillating) between two stable
+                            # end states.  This has happened in the past
+                            # but at present there are no known instances.
+                            $convergence_log_message = <<EOM;
 Blinking. Output for iteration $iter same as for $saw_md5{$digest}. 
 EOM
-                                $diagnostics_object->write_diagnostics(
-                                    $convergence_log_message)
-                                  if $diagnostics_object;
-                            }
-                            else {
-                                $convergence_log_message = <<EOM;
+                            $diagnostics_object->write_diagnostics(
+                                $convergence_log_message)
+                              if $diagnostics_object;
+                        }
+                        else {
+                            $convergence_log_message = <<EOM;
 Converged.  Output for iteration $iter same as for iter $iterm.
 EOM
-                                $diagnostics_object->write_diagnostics(
-                                    $convergence_log_message)
-                                  if $diagnostics_object && $iterm > 2;
-                            }
+                            $diagnostics_object->write_diagnostics(
+                                $convergence_log_message)
+                              if $diagnostics_object && $iterm > 2;
                         }
-                    } ## end if ($do_convergence_test)
-
-                    if ($stop_now) {
-
-                        # we are stopping the iterations early;
-                        # copy the output stream to its final destination
-                        $sink_object = $sink_object_final;
-                        while ( my $line = $source_object->get_line() ) {
-                            $sink_object->write_line($line);
-                        }
-                        $source_object->close_input_file();
-                        last;
                     }
-                } ## end if ( $iter < $max_iterations)
-            }    # end loop over iterations for one source file
+                } ## end if ($do_convergence_test)
 
-            # restore objects which have been temporarily undefined
-            # for second and higher iterations
-            $debugger_object = $debugger_object_final;
-            $logger_object   = $logger_object_final;
+                if ($stop_now) {
 
-            $logger_object->write_logfile_entry($convergence_log_message)
-              if $convergence_log_message;
-
-            #---------------------------------------------------------------
-            # Perform any postfilter operation
-            #---------------------------------------------------------------
-            if ($postfilter) {
-                $sink_object->close_output_file();
-                $sink_object =
-                  Perl::Tidy::LineSink->new( $output_file, $tee_file,
-                    $line_separator, $rOpts, $rpending_logfile_message,
-                    $binmode );
-                my $buf = $postfilter->($postfilter_buffer);
-                $source_object =
-                  Perl::Tidy::LineSource->new( \$buf, $rOpts,
-                    $rpending_logfile_message );
-                ##chomp $buf;
-                ##foreach my $line ( split( "\n", $buf , -1) ) {
-                while ( my $line = $source_object->get_line() ) {
-                    $sink_object->write_line($line);
+                    # we are stopping the iterations early;
+                    # copy the output stream to its final destination
+                    $sink_object = $sink_object_final;
+                    while ( my $line = $source_object->get_line() ) {
+                        $sink_object->write_line($line);
+                    }
+                    $source_object->close_input_file();
+                    last;
                 }
-                $source_object->close_input_file();
+            } ## end if ( $iter < $max_iterations)
+        }    # end loop over iterations for one source file
+
+        # restore objects which have been temporarily undefined
+        # for second and higher iterations
+        $debugger_object = $debugger_object_final;
+        $logger_object   = $logger_object_final;
+
+        $logger_object->write_logfile_entry($convergence_log_message)
+          if $convergence_log_message;
+
+        #---------------------------------------------------------------
+        # Perform any postfilter operation
+        #---------------------------------------------------------------
+        if ($postfilter) {
+            $sink_object->close_output_file();
+            $sink_object =
+              Perl::Tidy::LineSink->new( $output_file, $tee_file,
+                $line_separator, $rOpts, $rpending_logfile_message, $binmode );
+            my $buf = $postfilter->($postfilter_buffer);
+            $source_object =
+              Perl::Tidy::LineSource->new( \$buf, $rOpts,
+                $rpending_logfile_message );
+            while ( my $line = $source_object->get_line() ) {
+                $sink_object->write_line($line);
             }
+            $source_object->close_input_file();
+        }
 
-            # Save names of the input and output files for syntax check
-            my $ifname = $input_file;
-            my $ofname = $output_file;
+        # Save names of the input and output files for syntax check
+        my $ifname = $input_file;
+        my $ofname = $output_file;
 
-            #---------------------------------------------------------------
-            # handle the -b option (backup and modify in-place)
-            #---------------------------------------------------------------
-            if ($in_place_modify) {
-                unless ( -f $input_file ) {
+        #---------------------------------------------------------------
+        # handle the -b option (backup and modify in-place)
+        #---------------------------------------------------------------
+        if ($in_place_modify) {
+            unless ( -f $input_file ) {
 
-                    # oh, oh, no real file to backup ..
-                    # shouldn't happen because of numerous preliminary checks
-                    die
+                # oh, oh, no real file to backup ..
+                # shouldn't happen because of numerous preliminary checks
+                Die
 "problem with -b backing up input file '$input_file': not a file\n";
-                }
-                my $backup_name = $input_file . $backup_extension;
-                if ( -f $backup_name ) {
-                    unlink($backup_name)
-                      or die
+            }
+            my $backup_name = $input_file . $backup_extension;
+            if ( -f $backup_name ) {
+                unlink($backup_name)
+                  or Die
 "unable to remove previous '$backup_name' for -b option; check permissions: $!\n";
-                }
+            }
 
-                # backup the input file
-                # we use copy for symlinks, move for regular files
-                if ( -l $input_file ) {
-                    File::Copy::copy( $input_file, $backup_name )
-                      or die "File::Copy failed trying to backup source: $!";
-                }
-                else {
-                    rename( $input_file, $backup_name )
-                      or die
+            # backup the input file
+            # we use copy for symlinks, move for regular files
+            if ( -l $input_file ) {
+                File::Copy::copy( $input_file, $backup_name )
+                  or Die "File::Copy failed trying to backup source: $!";
+            }
+            else {
+                rename( $input_file, $backup_name )
+                  or Die
 "problem renaming $input_file to $backup_name for -b option: $!\n";
-                }
-                $ifname = $backup_name;
+            }
+            $ifname = $backup_name;
 
-                # copy the output to the original input file
-                # NOTE: it would be nice to just close $output_file and use
-                # File::Copy::copy here, but in this case $output_file is the
-                # handle of an open nameless temporary file so we would lose
-                # everything if we closed it.
-                seek( $output_file, 0, 0 )
-                  or die
-                  "unable to rewind a temporary file for -b option: $!\n";
-                my $fout = IO::File->new("> $input_file")
-                  or die
+            # copy the output to the original input file
+            # NOTE: it would be nice to just close $output_file and use
+            # File::Copy::copy here, but in this case $output_file is the
+            # handle of an open nameless temporary file so we would lose
+            # everything if we closed it.
+            seek( $output_file, 0, 0 )
+              or Die "unable to rewind a temporary file for -b option: $!\n";
+            my $fout = IO::File->new("> $input_file")
+              or Die
 "problem re-opening $input_file for write for -b option; check file and directory permissions: $!\n";
-                binmode $fout;
-                my $line;
-                while ( $line = $output_file->getline() ) {
-                    $fout->print($line);
+            binmode $fout;
+            my $line;
+            while ( $line = $output_file->getline() ) {
+                $fout->print($line);
+            }
+            $fout->close();
+            $output_file = $input_file;
+            $ofname      = $input_file;
+        }
+
+        #---------------------------------------------------------------
+        # clean up and report errors
+        #---------------------------------------------------------------
+        $sink_object->close_output_file()    if $sink_object;
+        $debugger_object->close_debug_file() if $debugger_object;
+
+        # set output file permissions
+        if ( $output_file && -f $output_file && !-l $output_file ) {
+            if ($input_file_permissions) {
+
+                # give output script same permissions as input script, but
+                # make it user-writable or else we can't run perltidy again.
+                # Thus we retain whatever executable flags were set.
+                if ( $rOpts->{'format'} eq 'tidy' ) {
+                    chmod( $input_file_permissions | 0600, $output_file );
                 }
-                $fout->close();
-                $output_file = $input_file;
-                $ofname      = $input_file;
+
+                # else use default permissions for html and any other format
             }
+        }
 
-            #---------------------------------------------------------------
-            # clean up and report errors
-            #---------------------------------------------------------------
-            $sink_object->close_output_file()    if $sink_object;
-            $debugger_object->close_debug_file() if $debugger_object;
+        #---------------------------------------------------------------
+        # Do syntax check if requested and possible
+        #---------------------------------------------------------------
+        my $infile_syntax_ok = 0;    # -1 no  0=don't know   1 yes
+        if (   $logger_object
+            && $rOpts->{'check-syntax'}
+            && $ifname
+            && $ofname )
+        {
+            $infile_syntax_ok =
+              check_syntax( $ifname, $ofname, $logger_object, $rOpts );
+        }
 
-            # set output file permissions
-            if ( $output_file && -f $output_file && !-l $output_file ) {
-                if ($input_file_permissions) {
+        #---------------------------------------------------------------
+        # remove the original file for in-place modify as follows:
+        #   $delete_backup=0 never
+        #   $delete_backup=1 only if no errors
+        #   $delete_backup>1 always  : NOT ALLOWED, too risky, see above
+        #---------------------------------------------------------------
+        if (   $in_place_modify
+            && $delete_backup
+            && -f $ifname
+            && ( $delete_backup > 1 || !$logger_object->{_warning_count} ) )
+        {
 
-                    # give output script same permissions as input script, but
-                    # make it user-writable or else we can't run perltidy again.
-                    # Thus we retain whatever executable flags were set.
-                    if ( $rOpts->{'format'} eq 'tidy' ) {
-                        chmod( $input_file_permissions | 0600, $output_file );
-                    }
-
-                    # else use default permissions for html and any other format
-                }
-            }
-
-            #---------------------------------------------------------------
-            # Do syntax check if requested and possible
-            #---------------------------------------------------------------
-            my $infile_syntax_ok = 0;    # -1 no  0=don't know   1 yes
-            if (   $logger_object
-                && $rOpts->{'check-syntax'}
-                && $ifname
-                && $ofname )
-            {
-                $infile_syntax_ok =
-                  check_syntax( $ifname, $ofname, $logger_object, $rOpts );
-            }
-
-            #---------------------------------------------------------------
-            # remove the original file for in-place modify as follows:
-            #   $delete_backup=0 never
-            #   $delete_backup=1 only if no errors
-            #   $delete_backup>1 always  : CURRENTLY NOT ALLOWED, see above
-            #---------------------------------------------------------------
-            if (   $in_place_modify
-                && $delete_backup
-                && -f $ifname
-                && ( $delete_backup > 1 || !$logger_object->{_warning_count} ) )
-            {
-
-                # As an added safety precaution, do not delete the source file
-                # if its size has dropped from positive to zero, since this
-                # could indicate a disaster of some kind, including a hardware
-                # failure.  Actually, this could happen if you had a file of
-                # all comments (or pod) and deleted everything with -dac (-dap)
-                # for some reason.
-                if ( !-s $output_file && -s $ifname && $delete_backup == 1 ) {
-                    warn(
+            # As an added safety precaution, do not delete the source file
+            # if its size has dropped from positive to zero, since this
+            # could indicate a disaster of some kind, including a hardware
+            # failure.  Actually, this could happen if you had a file of
+            # all comments (or pod) and deleted everything with -dac (-dap)
+            # for some reason.
+            if ( !-s $output_file && -s $ifname && $delete_backup == 1 ) {
+                Warn(
 "output file '$output_file' missing or zero length; original '$ifname' not deleted\n"
-                    );
-                }
-                else {
-                    unlink($ifname)
-                      or die
-"unable to remove previous '$ifname' for -b option; check permissions: $!\n";
-                }
+                );
             }
+            else {
+                unlink($ifname)
+                  or Die
+"unable to remove previous '$ifname' for -b option; check permissions: $!\n";
+            }
+        }
 
-            $logger_object->finish( $infile_syntax_ok, $formatter )
-              if $logger_object;
-        }    # end of main loop to process all files
-    }    # end of main program perltidy
-}
+        $logger_object->finish( $infile_syntax_ok, $formatter )
+          if $logger_object;
+    }    # end of main loop to process all files
+
+  NORMAL_EXIT:
+    return 0;
+
+  ERROR_EXIT:
+    return 1;
+}    # end of main program perltidy
 
 sub get_stream_as_named_file {
 
@@ -1338,7 +1309,7 @@ sub get_stream_as_named_file {
             if ($fh_stream) {
                 my ( $fout, $tmpnam );
 
-                # FIXME: fix the tmpnam routine to return an open filehandle
+                # TODO: fix the tmpnam routine to return an open filehandle
                 $tmpnam = Perl::Tidy::make_temporary_filename();
                 $fout = IO::File->new( $tmpnam, 'w' );
 
@@ -1527,7 +1498,7 @@ sub generate_options {
         if ($short_name) {
             if ( $expansion{$short_name} ) {
                 my $existing_name = $expansion{$short_name}[0];
-                die
+                Die
 "redefining abbreviation $short_name for $long_name; already used for $existing_name\n";
             }
             $expansion{$short_name} = [$long_name];
@@ -1536,7 +1507,7 @@ sub generate_options {
                 my $nolong_name = 'no' . $long_name;
                 if ( $expansion{$nshort_name} ) {
                     my $existing_name = $expansion{$nshort_name}[0];
-                    die
+                    Die
 "attempting to redefine abbreviation $nshort_name for $nolong_name; already used for $existing_name\n";
                 }
                 $expansion{$nshort_name} = [$nolong_name];
@@ -1584,6 +1555,7 @@ sub generate_options {
     $add_option->( 'perl-syntax-check-flags',  'pscf', '=s' );
     $add_option->( 'preserve-line-endings',    'ple',  '!' );
     $add_option->( 'tabs',                     't',    '!' );
+    $add_option->( 'default-tabsize',          'dt',   '=i' );
 
     ########################################
     $category = 2;    # Code indentation control
@@ -1652,6 +1624,7 @@ sub generate_options {
     $add_option->( 'static-block-comments',             'sbc',  '!' );
     $add_option->( 'static-side-comment-prefix',        'sscp', '=s' );
     $add_option->( 'static-side-comments',              'ssc',  '!' );
+    $add_option->( 'ignore-side-comment-lengths',       'iscl', '!' );
 
     ########################################
     $category = 5;    # Linebreak controls
@@ -1893,6 +1866,7 @@ sub generate_options {
       format=tidy
       backup-file-extension=bak
       format-skipping
+      default-tabsize=8
 
       pod2html
       html-table-of-contents
@@ -1997,6 +1971,11 @@ sub generate_options {
         'stack-closing-tokens'   => => [qw(scp schb scsb)],
         'nsct'                   => [qw(nscp nschb nscsb)],
         'nostack-opening-tokens' => [qw(nscp nschb nscsb)],
+
+        'converge'   => [qw(it=4)],
+        'noconverge' => [qw(it=1)],
+        'conv'       => [qw(it=4)],
+        'nconv'      => [qw(it=1)],
 
         # 'mangle' originally deleted pod and comments, but to keep it
         # reversible, it no longer does.  But if you really want to
@@ -2124,7 +2103,7 @@ sub process_command_line {
         else { $glc = undef }
 
         if ( !GetOptions( \%Opts, @$roption_string ) ) {
-            die "Programming Bug: error in setting default options";
+            Die "Programming Bug: error in setting default options";
         }
 
         # Patch to put the previous Getopt::Long configuration back
@@ -2157,7 +2136,7 @@ sub process_command_line {
         }
         elsif ( $i =~ /^-(pro|profile)=(.+)/ ) {
             if ($config_file) {
-                warn
+                Warn
 "Only one -pro=filename allowed, using '$2' instead of '$config_file'\n";
             }
             $config_file = $2;
@@ -2177,45 +2156,45 @@ sub process_command_line {
                 }
             }
             unless ( -e $config_file ) {
-                warn "cannot find file given with -pro=$config_file: $!\n";
+                Warn "cannot find file given with -pro=$config_file: $!\n";
                 $config_file = "";
             }
         }
         elsif ( $i =~ /^-(pro|profile)=?$/ ) {
-            die "usage: -pro=filename or --profile=filename, no spaces\n";
+            Die "usage: -pro=filename or --profile=filename, no spaces\n";
         }
         elsif ( $i =~ /^-extrude$/ ) {
             $saw_extrude = 1;
         }
         elsif ( $i =~ /^-(help|h|HELP|H|\?)$/ ) {
             usage();
-            exit 0;
+            Exit 0;
         }
         elsif ( $i =~ /^-(version|v)$/ ) {
             show_version();
-            exit 0;
+            Exit 0;
         }
         elsif ( $i =~ /^-(dump-defaults|ddf)$/ ) {
             dump_defaults(@$rdefaults);
-            exit 0;
+            Exit 0;
         }
         elsif ( $i =~ /^-(dump-long-names|dln)$/ ) {
             dump_long_names(@$roption_string);
-            exit 0;
+            Exit 0;
         }
         elsif ( $i =~ /^-(dump-short-names|dsn)$/ ) {
             dump_short_names($rexpansion);
-            exit 0;
+            Exit 0;
         }
         elsif ( $i =~ /^-(dump-token-types|dtt)$/ ) {
             Perl::Tidy::Tokenizer->dump_token_types(*STDOUT);
-            exit 0;
+            Exit 0;
         }
     }
 
     if ( $saw_dump_profile && $saw_ignore_profile ) {
-        warn "No profile to dump because of -npro\n";
-        exit 1;
+        Warn "No profile to dump because of -npro\n";
+        Exit 1;
     }
 
     #---------------------------------------------------------------
@@ -2228,7 +2207,7 @@ sub process_command_line {
         # line.
         if ($perltidyrc_stream) {
             if ($config_file) {
-                warn <<EOM;
+                Warn <<EOM;
  Conflict: a perltidyrc configuration file was specified both as this
  perltidy call parameter: $perltidyrc_stream 
  and with this -profile=$config_file.
@@ -2261,14 +2240,14 @@ EOM
 
         if ($saw_dump_profile) {
             dump_config_file( $fh_config, $config_file, $rconfig_file_chatter );
-            exit 0;
+            Exit 0;
         }
 
         if ($fh_config) {
 
             my ( $rconfig_list, $death_message ) =
               read_config_file( $fh_config, $config_file, $rexpansion );
-            die $death_message if ($death_message);
+            Die $death_message if ($death_message);
 
             # process any .perltidyrc parameters right now so we can
             # localize errors
@@ -2279,7 +2258,7 @@ EOM
                     $config_file );
 
                 if ( !GetOptions( \%Opts, @$roption_string ) ) {
-                    die
+                    Die
 "Error in this config file: $config_file  \nUse -npro to ignore this file, -h for help'\n";
                 }
 
@@ -2300,7 +2279,7 @@ EOM
                             last;
                         }
                     }
-                    die <<EOM;
+                    Die <<EOM;
 There are $count unrecognized values in the configuration file '$config_file':
 $str
 Use leading dashes for parameters.  Use -npro to ignore this file.
@@ -2329,7 +2308,7 @@ EOM
 
                     if ( defined( $Opts{$_} ) ) {
                         delete $Opts{$_};
-                        warn "ignoring --$_ in config file: $config_file\n";
+                        Warn "ignoring --$_ in config file: $config_file\n";
                     }
                 }
             }
@@ -2341,8 +2320,9 @@ EOM
     #---------------------------------------------------------------
     expand_command_abbreviations( $rexpansion, \@raw_options, $config_file );
 
+    local $SIG{'__WARN__'} = sub { Warn $_[0] };
     if ( !GetOptions( \%Opts, @$roption_string ) ) {
-        die "Error on command line; for help try 'perltidy -h'\n";
+        Die "Error on command line; for help try 'perltidy -h'\n";
     }
 
     return ( \%Opts, $config_file, \@raw_options, $saw_extrude, $roption_string,
@@ -2435,20 +2415,20 @@ sub check_options {
     if ( $rOpts->{'blank-lines-before-subs'} ) {
         if ( $rOpts->{'blank-lines-before-subs'} < 0 ) {
             $rOpts->{'blank-lines-before-subs'} = 0;
-            warn "negative value of -blbs, setting 0\n";
+            Warn "negative value of -blbs, setting 0\n";
         }
         if ( $rOpts->{'blank-lines-before-subs'} > 100 ) {
-            warn "unreasonably large value of -blbs, reducing\n";
+            Warn "unreasonably large value of -blbs, reducing\n";
             $rOpts->{'blank-lines-before-subs'} = 100;
         }
     }
     if ( $rOpts->{'blank-lines-before-packages'} ) {
         if ( $rOpts->{'blank-lines-before-packages'} < 0 ) {
-            warn "negative value of -blbp, setting 0\n";
+            Warn "negative value of -blbp, setting 0\n";
             $rOpts->{'blank-lines-before-packages'} = 0;
         }
         if ( $rOpts->{'blank-lines-before-packages'} > 100 ) {
-            warn "unreasonably large value of -blbp, reducing\n";
+            Warn "unreasonably large value of -blbp, reducing\n";
             $rOpts->{'blank-lines-before-packages'} = 100;
         }
     }
@@ -2494,7 +2474,7 @@ sub check_options {
     if (   $rOpts->{'opening-brace-always-on-right'}
         && $rOpts->{'opening-brace-on-new-line'} )
     {
-        warn <<EOM;
+        Warn <<EOM;
  Conflict: you specified both 'opening-brace-always-on-right' (-bar) and 
   'opening-brace-on-new-line' (-bl).  Ignoring -bl. 
 EOM
@@ -2514,13 +2494,41 @@ EOM
 
     if ( $rOpts->{'entab-leading-whitespace'} ) {
         if ( $rOpts->{'entab-leading-whitespace'} < 0 ) {
-            warn "-et=n must use a positive integer; ignoring -et\n";
+            Warn "-et=n must use a positive integer; ignoring -et\n";
             $rOpts->{'entab-leading-whitespace'} = undef;
         }
 
         # entab leading whitespace has priority over the older 'tabs' option
         if ( $rOpts->{'tabs'} ) { $rOpts->{'tabs'} = 0; }
     }
+
+    # set a default tabsize to be used in guessing the starting indentation
+    # level if and only if this run does not use tabs and the old code does
+    # use tabs
+    if ( $rOpts->{'default-tabsize'} ) {
+        if ( $rOpts->{'default-tabsize'} < 0 ) {
+            Warn "negative value of -dt, setting 0\n";
+            $rOpts->{'default-tabsize'} = 0;
+        }
+        if ( $rOpts->{'default-tabsize'} > 20 ) {
+            Warn "unreasonably large value of -dt, reducing\n";
+            $rOpts->{'default-tabsize'} = 20;
+        }
+    }
+    else {
+        $rOpts->{'default-tabsize'} = 8;
+    }
+
+    # Define $tabsize, the number of spaces per tab for use in
+    # guessing the indentation of source lines with leading tabs.
+    # Assume same as for this run if tabs are used , otherwise assume
+    # a default value, typically 8
+    my $tabsize =
+        $rOpts->{'entab-leading-whitespace'}
+      ? $rOpts->{'entab-leading-whitespace'}
+      : $rOpts->{'tabs'} ? $rOpts->{'indent-columns'}
+      :                    $rOpts->{'default-tabsize'};
+    return $tabsize;
 }
 
 sub find_file_upwards {
@@ -2616,29 +2624,33 @@ sub expand_command_abbreviations {
 
         # make sure we are not in an infinite loop
         if ( $pass_count == $max_passes ) {
-            print STDERR
-"I'm tired. We seem to be in an infinite loop trying to expand aliases.\n";
-            print STDERR "Here are the raw options\n";
             local $" = ')(';
-            print STDERR "(@$rraw_options)\n";
+            Warn <<EOM;
+I'm tired. We seem to be in an infinite loop trying to expand aliases.
+Here are the raw options;
+(rraw_options)
+EOM
             my $num = @new_argv;
-
             if ( $num < 50 ) {
-                print STDERR "After $max_passes passes here is ARGV\n";
-                print STDERR "(@new_argv)\n";
+                Warn <<EOM;
+After $max_passes passes here is ARGV
+(@new_argv)
+EOM
             }
             else {
-                print STDERR "After $max_passes passes ARGV has $num entries\n";
+                Warn <<EOM;
+After $max_passes passes ARGV has $num entries
+EOM
             }
 
             if ($config_file) {
-                die <<"DIE";
+                Die <<"DIE";
 Please check your configuration file $config_file for circular-references. 
 To deactivate it, use -npro.
 DIE
             }
             else {
-                die <<'DIE';
+                Die <<'DIE';
 Program bug - circular-references in the %expansion hash, probably due to
 a recent program change.
 DIE
@@ -2690,7 +2702,7 @@ sub check_vms_filename {
     # normalise filename, if there are no unescaped dots then append one
     $base .= '.' unless $base =~ /(?:^|[^^])\./;
 
-    # if we don't already have an extension then we just append the extention
+    # if we don't already have an extension then we just append the extension
     my $separator = ( $base =~ /\.$/ ) ? "" : "_";
     return ( $path . $base, $separator );
 }
@@ -2752,7 +2764,7 @@ We won't be able to look for a system-wide config file.
 EOS
     }
 
-    # Unfortunately the logic used for the various versions isnt so clever..
+    # Unfortunately the logic used for the various versions isn't so clever..
     # so we have to handle an outside case.
     return ( $os eq "2000" && $major != 5 ) ? "NT4" : $os;
 }
@@ -2790,7 +2802,7 @@ sub find_config_file {
         $$rconfig_file_chatter .= " $^O\n";
     }
 
-    # sub to check file existance and record all tests
+    # sub to check file existence and record all tests
     my $exists_config_file = sub {
         my $config_file = shift;
         return 0 unless $config_file;
@@ -2815,7 +2827,7 @@ sub find_config_file {
     # network def
     push @envs, qw(USERPROFILE HOMESHARE) if $^O =~ /win32/i;
 
-    # Now go through the enviornment ...
+    # Now go through the environment ...
     foreach my $var (@envs) {
         $$rconfig_file_chatter .= "# Examining: \$ENV{$var}";
         if ( defined( $ENV{$var} ) ) {
@@ -3234,7 +3246,7 @@ sub readable_options {
 }
 
 sub show_version {
-    print <<"EOM";
+    print STDOUT <<"EOM";
 This is perltidy, v$VERSION 
 
 Copyright 2000-2012, Steve Hancock
@@ -3279,7 +3291,7 @@ I/O control
  -npro   ignore .perltidyrc configuration command file 
  -pro=file   read configuration commands from file instead of .perltidyrc 
  -st     send output to standard output, STDOUT
- -se     send error output to standard error output, STDERR
+ -se     send all error output to standard error output, STDERR
  -v      display version number to standard output and quit
 
 Basic Options:
@@ -3783,7 +3795,12 @@ EOM
 
 sub close_input_file {
     my $self = shift;
-    eval { $self->{_fh}->close() };
+
+    # Only close physical files, not STDIN and other objects
+    my $filename = $self->{_filename};
+    if ( $filename ne '-' && !ref $filename ) {
+        eval { $self->{_fh}->close() };
+    }
 }
 
 sub get_line {
@@ -3835,7 +3852,7 @@ sub new {
 
     if ( $rOpts->{'format'} eq 'tidy' ) {
         ( $fh, $output_file ) = Perl::Tidy::streamhandle( $output_file, 'w' );
-        unless ($fh) { die "Cannot write to output stream\n"; }
+        unless ($fh) { Perl::Tidy::Die "Cannot write to output stream\n"; }
         $output_file_open = 1;
         if ($binmode) {
             if ( ref($fh) eq 'IO::File' ) {
@@ -3907,7 +3924,7 @@ sub really_open_tee_file {
     my $tee_file = $self->{_tee_file};
     my $fh_tee;
     $fh_tee = IO::File->new(">$tee_file")
-      or die("couldn't open TEE file $tee_file: $!\n");
+      or Perl::Tidy::Die("couldn't open TEE file $tee_file: $!\n");
     binmode $fh_tee if $self->{_binmode};
     $self->{_tee_file_opened} = 1;
     $self->{_fh_tee}          = $fh_tee;
@@ -3915,16 +3932,25 @@ sub really_open_tee_file {
 
 sub close_output_file {
     my $self = shift;
-    eval { $self->{_fh}->close() } if $self->{_output_file_open};
+
+    # Only close physical files, not STDOUT and other objects
+    my $output_file = $self->{_output_file};
+    if ( $output_file ne '-' && !ref $output_file ) {
+        eval { $self->{_fh}->close() } if $self->{_output_file_open};
+    }
     $self->close_tee_file();
 }
 
 sub close_tee_file {
     my $self = shift;
 
+    # Only close physical files, not STDOUT and other objects
     if ( $self->{_tee_file_opened} ) {
-        eval { $self->{_fh_tee}->close() };
-        $self->{_tee_file_opened} = 0;
+        my $tee_file = $self->{_tee_file};
+        if ( $tee_file ne '-' && !ref $tee_file ) {
+            eval { $self->{_fh_tee}->close() };
+            $self->{_tee_file_opened} = 0;
+        }
     }
 }
 
@@ -3991,17 +4017,19 @@ package Perl::Tidy::Logger;
 sub new {
     my $class = shift;
     my $fh;
-    my ( $rOpts, $log_file, $warning_file, $saw_extrude ) = @_;
+    my ( $rOpts, $log_file, $warning_file, $fh_stderr, $saw_extrude, ) = @_;
 
-    # remove any old error output file
-    unless ( ref($warning_file) ) {
+    my $fh_warnings = $rOpts->{'standard-error-output'} ? $fh_stderr : undef;
+
+    # remove any old error output file if we might write a new one
+    unless ( $fh_warnings || ref($warning_file) ) {
         if ( -e $warning_file ) { unlink($warning_file) }
     }
 
     bless {
         _log_file                      => $log_file,
         _rOpts                         => $rOpts,
-        _fh_warnings                   => undef,
+        _fh_warnings                   => $fh_warnings,
         _last_input_line_written       => 0,
         _at_end_of_file                => 0,
         _use_prefix                    => 1,
@@ -4018,15 +4046,6 @@ sub new {
         _saw_extrude     => $saw_extrude,
         _output_array    => [],
     }, $class;
-}
-
-sub close_log_file {
-
-    my $self = shift;
-    if ( $self->{_fh_warnings} ) {
-        eval { $self->{_fh_warnings}->close() };
-        $self->{_fh_warnings} = undef;
-    }
 }
 
 sub get_warning_count {
@@ -4143,8 +4162,8 @@ sub make_line_information_string {
         my $brace_depth          = $line_of_tokens->{_curly_brace_depth};
         my $paren_depth          = $line_of_tokens->{_paren_depth};
         my $square_bracket_depth = $line_of_tokens->{_square_bracket_depth};
-        my $python_indentation_level =
-          $line_of_tokens->{_python_indentation_level};
+        my $guessed_indentation_level =
+          $line_of_tokens->{_guessed_indentation_level};
         my $rlevels         = $line_of_tokens->{_rlevels};
         my $rnesting_tokens = $line_of_tokens->{_rnesting_tokens};
         my $rci_levels      = $line_of_tokens->{_rci_levels};
@@ -4183,9 +4202,8 @@ sub make_line_information_string {
             $nesting_string =
               $nesting_string_new . " " x ( 8 - length($nesting_string_new) );
         }
-        if ( $python_indentation_level < 0 ) { $python_indentation_level = 0 }
         $line_information_string =
-"L$input_line_number:$output_line_number$extra_space i$python_indentation_level:$structural_indentation_level $ci_level $bk $nesting_string";
+"L$input_line_number:$output_line_number$extra_space i$guessed_indentation_level:$structural_indentation_level $ci_level $bk $nesting_string";
     }
     return $line_information_string;
 }
@@ -4266,22 +4284,17 @@ sub warning {
     unless ( $rOpts->{'quiet'} ) {
 
         my $warning_count = $self->{_warning_count};
-        unless ($warning_count) {
+        my $fh_warnings   = $self->{_fh_warnings};
+        if ( !$fh_warnings ) {
             my $warning_file = $self->{_warning_file};
-            my $fh_warnings;
-            if ( $rOpts->{'standard-error-output'} ) {
-                $fh_warnings = *STDERR;
-            }
-            else {
-                ( $fh_warnings, my $filename ) =
-                  Perl::Tidy::streamhandle( $warning_file, 'w' );
-                $fh_warnings or die("couldn't open $filename $!\n");
-                warn "## Please see file $filename\n" unless ref($warning_file);
-            }
+            ( $fh_warnings, my $filename ) =
+              Perl::Tidy::streamhandle( $warning_file, 'w' );
+            $fh_warnings or Perl::Tidy::Die("couldn't open $filename $!\n");
+            Perl::Tidy::Warn "## Please see file $filename\n"
+              unless ref($warning_file);
             $self->{_fh_warnings} = $fh_warnings;
         }
 
-        my $fh_warnings = $self->{_fh_warnings};
         if ( $warning_count < WARNING_LIMIT ) {
             if ( $self->get_use_prefix() > 0 ) {
                 my $input_line_number =
@@ -4421,7 +4434,9 @@ sub finish {
         if ($fh) {
             my $routput_array = $self->{_output_array};
             foreach ( @{$routput_array} ) { $fh->print($_) }
-            eval { $fh->close() };
+            if ( $log_file ne '-' && !ref $log_file ) {
+                eval { $fh->close() };
+            }
         }
     }
 }
@@ -4475,7 +4490,7 @@ sub new {
     ( $html_fh, my $html_filename ) =
       Perl::Tidy::streamhandle( $html_file, 'w' );
     unless ($html_fh) {
-        warn("can't open $html_file: $!\n");
+        Perl::Tidy::Warn("can't open $html_file: $!\n");
         return undef;
     }
     $html_file_opened = 1;
@@ -4516,7 +4531,7 @@ PRE_END
         else {
             eval "use Pod::Html";
             if ($@) {
-                warn
+                Perl::Tidy::Warn
 "unable to find Pod::Html; cannot use pod2html\n-npod disables this message\n";
                 undef $rOpts->{'pod2html'};
             }
@@ -4530,7 +4545,7 @@ PRE_END
     my $src_filename;
     if ( $rOpts->{'frames'} ) {
         unless ($extension) {
-            warn
+            Perl::Tidy::Warn
 "cannot use frames without a specified output extension; ignoring -frm\n";
             undef $rOpts->{'frames'};
         }
@@ -4755,8 +4770,8 @@ BEGIN {
     );
 
     # These token types will all be called identifiers for now
-    # FIXME: need to separate user defined modules as separate type
-    my @identifier = qw" i t U C Y Z G :: ";
+    # FIXME: could separate user defined modules as separate type
+    my @identifier = qw" i t U C Y Z G :: CORE::";
     @token_short_names{@identifier} = ('i') x scalar(@identifier);
 
     # These token types will be called 'structure'
@@ -4922,14 +4937,14 @@ sub check_options {
     # write style sheet to STDOUT and die if requested
     if ( defined( $rOpts->{'stylesheet'} ) ) {
         write_style_sheet_file('-');
-        exit 0;
+        Perl::Tidy::Exit 0;
     }
 
     # make sure user gives a file name after -css
     if ( defined( $rOpts->{'html-linked-style-sheet'} ) ) {
         $css_linkname = $rOpts->{'html-linked-style-sheet'};
         if ( $css_linkname =~ /^-/ ) {
-            die "You must specify a valid filename after -css\n";
+            Perl::Tidy::Die "You must specify a valid filename after -css\n";
         }
     }
 
@@ -4961,7 +4976,7 @@ sub write_style_sheet_file {
     my $css_filename = shift;
     my $fh;
     unless ( $fh = IO::File->new("> $css_filename") ) {
-        die "can't open $css_filename: $!\n";
+        Perl::Tidy::Die "can't open $css_filename: $!\n";
     }
     write_style_sheet_data($fh);
     eval { $fh->close };
@@ -5065,7 +5080,8 @@ sub pod_to_html {
     }
     my $fh_tmp = IO::File->new( $tmpfile, 'w' );
     unless ($fh_tmp) {
-        warn "unable to open temporary file $tmpfile; cannot use pod2html\n";
+        Perl::Tidy::Warn
+          "unable to open temporary file $tmpfile; cannot use pod2html\n";
         return $success_flag;
     }
 
@@ -5114,9 +5130,8 @@ sub pod_to_html {
         # Must clean up if pod2html dies (it can);
         # Be careful not to overwrite callers __DIE__ routine
         local $SIG{__DIE__} = sub {
-            print $_[0];
             unlink $tmpfile if -e $tmpfile;
-            exit 1;
+            Perl::Tidy::Die $_[0];
         };
 
         pod2html(@args);
@@ -5125,7 +5140,8 @@ sub pod_to_html {
     unless ($fh_tmp) {
 
         # this error shouldn't happen ... we just used this filename
-        warn "unable to open temporary file $tmpfile; cannot use pod2html\n";
+        Perl::Tidy::Warn
+          "unable to open temporary file $tmpfile; cannot use pod2html\n";
         goto RETURN;
     }
 
@@ -5206,7 +5222,7 @@ sub pod_to_html {
 
                     # shouldn't happen: we stored a string before writing
                     # each marker.
-                    warn
+                    Perl::Tidy::Warn
 "Problem merging html stream with pod2html; order may be wrong\n";
                 }
                 $html_print->($line);
@@ -5244,15 +5260,15 @@ sub pod_to_html {
 
     $success_flag = 1;
     unless ($saw_body) {
-        warn "Did not see <body> in pod2html output\n";
+        Perl::Tidy::Warn "Did not see <body> in pod2html output\n";
         $success_flag = 0;
     }
     unless ($saw_body_end) {
-        warn "Did not see </body> in pod2html output\n";
+        Perl::Tidy::Warn "Did not see </body> in pod2html output\n";
         $success_flag = 0;
     }
     unless ($saw_index) {
-        warn "Did not find INDEX END in pod2html output\n";
+        Perl::Tidy::Warn "Did not find INDEX END in pod2html output\n";
         $success_flag = 0;
     }
 
@@ -5305,7 +5321,7 @@ sub make_frame {
 
     # 2. The current .html filename is renamed to be the contents panel
     rename( $html_filename, $src_filename )
-      or die "Cannot rename $html_filename to $src_filename:$!\n";
+      or Perl::Tidy::Die "Cannot rename $html_filename to $src_filename:$!\n";
 
     # 3. Then use the original html filename for the frame
     write_frame_html(
@@ -5319,7 +5335,7 @@ sub write_toc_html {
     # write a separate html table of contents file for frames
     my ( $title, $toc_filename, $src_basename, $rtoc, $src_frame_name ) = @_;
     my $fh = IO::File->new( $toc_filename, 'w' )
-      or die "Cannot open $toc_filename:$!\n";
+      or Perl::Tidy::Die "Cannot open $toc_filename:$!\n";
     $fh->print(<<EOM);
 <html>
 <head>
@@ -5349,7 +5365,7 @@ sub write_frame_html {
     ) = @_;
 
     my $fh = IO::File->new( $frame_filename, 'w' )
-      or die "Cannot open $toc_basename:$!\n";
+      or Perl::Tidy::Die "Cannot open $toc_basename:$!\n";
 
     $fh->print(<<EOM);
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN"
@@ -5834,7 +5850,7 @@ BEGIN {
     use constant FORMATTER_DEBUG_FLAG_WHITE   => 0;
 
     my $debug_warning = sub {
-        print "FORMATTER_DEBUGGING with key $_[0]\n";
+        print STDOUT "FORMATTER_DEBUGGING with key $_[0]\n";
     };
 
     FORMATTER_DEBUG_FLAG_BOND    && $debug_warning->('BOND');
@@ -5879,7 +5895,7 @@ use vars qw{
   @container_environment_to_go
   @bond_strength_to_go
   @forced_breakpoint_to_go
-  @lengths_to_go
+  @summed_lengths_to_go
   @levels_to_go
   @leading_spaces_to_go
   @reduced_spaces_to_go
@@ -5978,7 +5994,6 @@ use vars qw{
   %is_assignment
   %is_chain_operator
   %is_if_unless_and_or_last_next_redo_return
-  %is_until_while_for_if_elsif_else
 
   @has_broken_sublist
   @dont_align
@@ -6039,6 +6054,7 @@ use vars qw{
   $rOpts_space_function_paren
   $rOpts_space_keyword_paren
   $rOpts_keep_interior_semicolons
+  $rOpts_ignore_side_comment_lengths
 
   $half_maximum_line_length
 
@@ -6097,10 +6113,6 @@ BEGIN {
 
     @_ = qw(is if unless and or err last next redo return);
     @is_if_unless_and_or_last_next_redo_return{@_} = (1) x scalar(@_);
-
-    # always break after a closing curly of these block types:
-    @_ = qw(until while for if elsif else);
-    @is_until_while_for_if_elsif_else{@_} = (1) x scalar(@_);
 
     @_ = qw(last next redo return);
     @is_last_next_redo_return{@_} = (1) x scalar(@_);
@@ -6302,7 +6314,7 @@ sub new {
     @container_environment_to_go = ();
     @bond_strength_to_go         = ();
     @forced_breakpoint_to_go     = ();
-    @lengths_to_go               = ();    # line length to start of ith token
+    @summed_lengths_to_go        = ();    # line length to start of ith token
     @levels_to_go                = ();
     @matching_token_to_go        = ();
     @mate_index_to_go            = ();
@@ -6415,7 +6427,7 @@ sub prepare_for_new_input_lines {
     $forced_breakpoint_count        = 0;
     $forced_breakpoint_undo_count   = 0;
     $rbrace_follower                = undef;
-    $lengths_to_go[0]               = 0;
+    $summed_lengths_to_go[0]        = 0;
     $old_line_count_in_batch        = 1;
     $comma_count_in_batch           = 0;
     $starting_in_quote              = 0;
@@ -6896,7 +6908,7 @@ sub set_leading_whitespace {
             # to this minimum standard indentation. But the most deeply
             # nested container will still probably be able to shift its
             # parameters to the right for proper alignment, so in most
-            # cases this will not be noticable.
+            # cases this will not be noticeable.
             if (   $available_space > 0
                 && $space_count > $half_maximum_line_length )
             {
@@ -7176,8 +7188,8 @@ sub token_sequence_length {
     my $ifirst = shift;
     my $ilast  = shift;
     return 0 if ( $ilast < 0 || $ifirst > $ilast );
-    return $lengths_to_go[ $ilast + 1 ] if ( $ifirst < 0 );
-    return $lengths_to_go[ $ilast + 1 ] - $lengths_to_go[$ifirst];
+    return $summed_lengths_to_go[ $ilast + 1 ] if ( $ifirst < 0 );
+    return $summed_lengths_to_go[ $ilast + 1 ] - $summed_lengths_to_go[$ifirst];
 }
 
 sub total_line_length {
@@ -7288,6 +7300,11 @@ sub finish_formatting {
             write_logfile_entry("No indentation disagreement seen\n");
         }
     }
+    if ($first_tabbing_disagreement) {
+        write_logfile_entry(
+"Note: Indentation disagreement detection is not accurate for outdenting and -lp.\n"
+        );
+    }
     write_logfile_entry("\n");
 
     $vertical_aligner_object->report_anything_unusual();
@@ -7300,7 +7317,6 @@ sub check_options {
     # This routine is called to check the Opts hash after it is defined
 
     ($rOpts) = @_;
-    my ( $tabbing_string, $tab_msg );
 
     make_static_block_comment_pattern();
     make_static_side_comment_pattern();
@@ -7345,7 +7361,7 @@ sub check_options {
             || !$rOpts->{'add-newlines'}
             || !$rOpts->{'delete-old-newlines'} )
         {
-            warn <<EOM;
+            Perl::Tidy::Warn <<EOM;
 -----------------------------------------------------------------------
 Conflict: -lp  conflicts with -io, -fnl, -nanl, or -ndnl; ignoring -lp
     
@@ -7358,26 +7374,26 @@ EOM
         }
     }
 
-    # At present, tabs are not compatable with the line-up-parentheses style
+    # At present, tabs are not compatible with the line-up-parentheses style
     # (it would be possible to entab the total leading whitespace
     # just prior to writing the line, if desired).
     if ( $rOpts->{'line-up-parentheses'} && $rOpts->{'tabs'} ) {
-        warn <<EOM;
+        Perl::Tidy::Warn <<EOM;
 Conflict: -t (tabs) cannot be used with the -lp  option; ignoring -t; see -et.
 EOM
         $rOpts->{'tabs'} = 0;
     }
 
-    # Likewise, tabs are not compatable with outdenting..
+    # Likewise, tabs are not compatible with outdenting..
     if ( $rOpts->{'outdent-keywords'} && $rOpts->{'tabs'} ) {
-        warn <<EOM;
+        Perl::Tidy::Warn <<EOM;
 Conflict: -t (tabs) cannot be used with the -okw options; ignoring -t; see -et.
 EOM
         $rOpts->{'tabs'} = 0;
     }
 
     if ( $rOpts->{'outdent-labels'} && $rOpts->{'tabs'} ) {
-        warn <<EOM;
+        Perl::Tidy::Warn <<EOM;
 Conflict: -t (tabs) cannot be used with the -ola  option; ignoring -t; see -et.
 EOM
         $rOpts->{'tabs'} = 0;
@@ -7403,7 +7419,7 @@ EOM
             $outdent_keyword{$_} = 1;
         }
         else {
-            warn "ignoring '$_' in -okwl list; not a perl keyword";
+            Perl::Tidy::Warn "ignoring '$_' in -okwl list; not a perl keyword";
         }
     }
 
@@ -7425,12 +7441,12 @@ EOM
     }
     if ( $rOpts->{'dump-want-left-space'} ) {
         dump_want_left_space(*STDOUT);
-        exit 0;
+        Perl::Tidy::Exit 0;
     }
 
     if ( $rOpts->{'dump-want-right-space'} ) {
         dump_want_right_space(*STDOUT);
-        exit 0;
+        Perl::Tidy::Exit 0;
     }
 
     # default keywords for which space is introduced before an opening paren
@@ -7571,12 +7587,12 @@ EOM
         $ole = lc $ole;
         unless ( $rOpts->{'output-line-ending'} = $endings{$ole} ) {
             my $str = join " ", keys %endings;
-            die <<EOM;
+            Perl::Tidy::Die <<EOM;
 Unrecognized line ending '$ole'; expecting one of: $str
 EOM
         }
         if ( $rOpts->{'preserve-line-endings'} ) {
-            warn "Ignoring -ple; conflicts with -ole\n";
+            Perl::Tidy::Warn "Ignoring -ple; conflicts with -ole\n";
             $rOpts->{'preserve-line-endings'} = undef;
         }
     }
@@ -7635,7 +7651,9 @@ EOM
     $rOpts_space_function_paren     = $rOpts->{'space-function-paren'};
     $rOpts_space_keyword_paren      = $rOpts->{'space-keyword-paren'};
     $rOpts_keep_interior_semicolons = $rOpts->{'keep-interior-semicolons'};
-    $half_maximum_line_length       = $rOpts_maximum_line_length / 2;
+    $rOpts_ignore_side_comment_lengths =
+      $rOpts->{'ignore-side-comment-lengths'};
+    $half_maximum_line_length = $rOpts_maximum_line_length / 2;
 
     # Note that both opening and closing tokens can access the opening
     # and closing flags of their container types.
@@ -7705,14 +7723,14 @@ sub make_static_block_comment_pattern {
         # user may give leading caret to force matching left comments only
         if ( $prefix !~ /^\^#/ ) {
             if ( $prefix !~ /^#/ ) {
-                die
+                Perl::Tidy::Die
 "ERROR: the -sbcp prefix is '$prefix' but must begin with '#' or '^#'\n";
             }
             $pattern = '^\s*' . $prefix;
         }
         eval "'##'=~/$pattern/";
         if ($@) {
-            die
+            Perl::Tidy::Die
 "ERROR: the -sbc prefix '$prefix' causes the invalid regex '$pattern'\n";
         }
         $static_block_comment_pattern = $pattern;
@@ -7725,12 +7743,13 @@ sub make_format_skipping_pattern {
     unless ($param) { $param = $default }
     $param =~ s/^\s*//;
     if ( $param !~ /^#/ ) {
-        die "ERROR: the $opt_name parameter '$param' must begin with '#'\n";
+        Perl::Tidy::Die
+          "ERROR: the $opt_name parameter '$param' must begin with '#'\n";
     }
     my $pattern = '^' . $param . '\s';
     eval "'#'=~/$pattern/";
     if ($@) {
-        die
+        Perl::Tidy::Die
 "ERROR: the $opt_name parameter '$param' causes the invalid regex '$pattern'\n";
     }
     return $pattern;
@@ -7802,7 +7821,8 @@ sub make_block_pattern {
             push @words, $i;
         }
         else {
-            warn "unrecognized block type $i after $abbrev, ignoring\n";
+            Perl::Tidy::Warn
+              "unrecognized block type $i after $abbrev, ignoring\n";
         }
     }
     my $pattern = '(' . join( '|', @words ) . ')$';
@@ -7825,7 +7845,7 @@ sub make_static_side_comment_pattern {
         my $pattern = '^' . $prefix;
         eval "'##'=~/$pattern/";
         if ($@) {
-            die
+            Perl::Tidy::Die
 "ERROR: the -sscp prefix '$prefix' causes the invalid regex '$pattern'\n";
         }
         $static_side_comment_pattern = $pattern;
@@ -7866,12 +7886,13 @@ sub make_closing_side_comment_prefix {
 
             # shouldn't happen..must have screwed up escaping, above
             report_definite_bug();
-            warn
+            Perl::Tidy::Warn
 "Program Error: the -cscp prefix '$csc_prefix' caused the invalid regex '$csc_prefix_pattern'\n";
 
             # just warn and keep going with defaults
-            warn "Please consider using a simpler -cscp prefix\n";
-            warn "Using default -cscp instead; please check output\n";
+            Perl::Tidy::Warn "Please consider using a simpler -cscp prefix\n";
+            Perl::Tidy::Warn
+              "Using default -cscp instead; please check output\n";
         }
         else {
             $csc_prefix         = $test_csc_prefix;
@@ -7956,7 +7977,8 @@ EOM
           #            my $size=-s::SINK if $file;  <==OK but we won't do it
           # don't join something like: for bla::bla:: abc
           # example is "%overload:: and" in files Dumpvalue.pm or colonbug.pl
-          ( ( $tokenl =~ /([\'\w]|\:\:)$/ ) && ( $tokenr =~ /^([\'\w]|\:\:)/ ) )
+          (      ( $tokenl =~ /([\'\w]|\:\:)$/ && $typel ne 'CORE::' )
+              && ( $tokenr =~ /^([\'\w]|\:\:)/ ) )
 
           # do not combine a number with a concatination dot
           # example: pom.caputo:
@@ -7983,7 +8005,7 @@ EOM
           # || ($tokenr eq '-')
 
           # keep a space between a quote and a bareword to prevent the
-          # bareword from becomming a quote modifier.
+          # bareword from becoming a quote modifier.
           || ( ( $typel eq 'Q' ) && ( $tokenr =~ /^[a-zA-Z_]/ ) )
 
           # keep a space between a token ending in '$' and any word;
@@ -8066,6 +8088,9 @@ EOM
           #    $opts{rdonly} = (($opts{mode} & O_ACCMODE) == O_RDONLY);
           || ( ( $typel eq '&' ) && ( $tokenr =~ /^[a-zA-Z_]/ ) )
 
+          # space stacked labels  (TODO: check if really necessary)
+          || (  $typel eq 'J'  &&  $typer eq 'J'  )
+
           ;    # the value of this long logic sequence is the result we want
         return $result;
     }
@@ -8146,11 +8171,12 @@ sub set_white_space_flag {
           (-1) x scalar(@spaces_right_side);
         @want_right_space{@spaces_right_side} =
           (1) x scalar(@spaces_right_side);
-        $want_left_space{'L'}   = WS_NO;
-        $want_left_space{'->'}  = WS_NO;
-        $want_right_space{'->'} = WS_NO;
-        $want_left_space{'**'}  = WS_NO;
-        $want_right_space{'**'} = WS_NO;
+        $want_left_space{'L'}       = WS_NO;
+        $want_left_space{'->'}      = WS_NO;
+        $want_right_space{'->'}     = WS_NO;
+        $want_left_space{'**'}      = WS_NO;
+        $want_right_space{'**'}     = WS_NO;
+        $want_right_space{'CORE::'} = WS_NO;
 
         # hash type information must stay tightly bound
         # as in :  ${xxxx}
@@ -8170,6 +8196,7 @@ sub set_white_space_flag {
         $binary_ws_rules{'@'}{'L'} = WS_NO;
         $binary_ws_rules{'@'}{'{'} = WS_NO;
         $binary_ws_rules{'='}{'L'} = WS_YES;
+        $binary_ws_rules{'J'}{'J'} = WS_YES;
 
         # the following includes ') {'
         # as in :    if ( xxx ) { yyy }
@@ -8198,7 +8225,7 @@ sub set_white_space_flag {
         $binary_ws_rules{'i'}{'Q'} = WS_YES;
         $binary_ws_rules{'n'}{'('} = WS_YES;    # occurs in 'use package n ()'
 
-        # FIXME: we need to split 'i' into variables and functions
+        # FIXME: we could to split 'i' into variables and functions
         # and have no space for functions but space for variables.  For now,
         # I have a special patch in the special rules below
         $binary_ws_rules{'i'}{'('} = WS_NO;
@@ -8563,7 +8590,7 @@ sub set_white_space_flag {
             if ( !defined($ws_2) ) { $ws_2 = "*" }
             if ( !defined($ws_3) ) { $ws_3 = "*" }
             if ( !defined($ws_4) ) { $ws_4 = "*" }
-            print
+            print STDOUT
 "WHITE:  i=$j $str $last_type $type $ws_1 : $ws_2 : $ws_3 : $ws_4 : $ws \n";
         };
     }
@@ -8586,7 +8613,7 @@ sub set_white_space_flag {
     my $rnesting_blocks;
 
     my $in_quote;
-    my $python_indentation_level;
+    my $guessed_indentation_level;
 
     # These local token variables are stored by store_token_to_go:
     my $block_type;
@@ -8644,6 +8671,35 @@ sub set_white_space_flag {
         }
     }
 
+    sub token_length {
+
+        # Returns the length of a token, given:
+        #  $token=text of the token
+        #  $type = type
+        #  $j = should be zero if this is the first token of the line
+        #   and non-zero otherwise.  It is used to test for a side comment
+        #   vs a block commment.
+        # Note: Eventually this should be the only routine determining the
+        # length of a token in this package.
+        my ( $token, $type, $j ) = @_;
+        my $token_length = length($token);
+
+        # We mark lengths of side comments as just 1 if we are
+        # ignoring their lengths when setting line breaks.
+        $token_length = 1
+          if ( $rOpts_ignore_side_comment_lengths
+            && $j > 0
+            && $type eq '#' );
+        return $token_length;
+    }
+
+    sub rtoken_length {
+
+        # return length of ith token in @{$rtokens}
+        my ($i) = @_;
+        return token_length( $$rtokens[$i], $$rtoken_type[$i], $i );
+    }
+
     # Routine to place the current token into the output stream.
     # Called once per output token.
     sub store_token_to_go {
@@ -8673,14 +8729,20 @@ sub set_white_space_flag {
         ## $levels_to_go[$max_index_to_go] = ( $level > 0 ) ? $level : 0;
         $levels_to_go[$max_index_to_go] = $level;
         $nesting_depth_to_go[$max_index_to_go] = ( $slevel >= 0 ) ? $slevel : 0;
-        $lengths_to_go[ $max_index_to_go + 1 ] =
-          $lengths_to_go[$max_index_to_go] + length($token);
+
+        # We keep a running sum of token lengths from the start of this batch:
+        #   summed_lengths_to_go[$i]   = total length to just before token $i
+        #   summed_lengths_to_go[$i+1] = total length to just after token $i
+        $summed_lengths_to_go[ $max_index_to_go + 1 ] =
+          $summed_lengths_to_go[$max_index_to_go] +
+          token_length( $token, $type, $max_index_to_go );
 
         # Define the indentation that this token would have if it started
         # a new line.  We have to do this now because we need to know this
         # when considering one-line blocks.
         set_leading_whitespace( $level, $ci_level, $in_continued_quote );
 
+        # remember previous nonblank tokens seen
         if ( $type ne 'b' ) {
             $last_last_nonblank_index_to_go = $last_nonblank_index_to_go;
             $last_last_nonblank_type_to_go  = $last_nonblank_type_to_go;
@@ -8695,7 +8757,7 @@ sub set_white_space_flag {
 
         FORMATTER_DEBUG_FLAG_STORE && do {
             my ( $a, $b, $c ) = caller();
-            print
+            print STDOUT
 "STORE: from $a $c: storing token $token type $type lev=$level slev=$slevel at $max_index_to_go\n";
         };
     }
@@ -8743,7 +8805,7 @@ sub set_white_space_flag {
         # processing.  This routine decides if there should be
         # whitespace between each pair of non-white tokens, so later
         # routines only need to decide on any additional line breaks.
-        # Any whitespace is initally a single space character.  Later,
+        # Any whitespace is initially a single space character.  Later,
         # the vertical aligner may expand that to be multiple space
         # characters if necessary for alignment.
 
@@ -8767,8 +8829,8 @@ sub set_white_space_flag {
           $line_of_tokens->{_starting_in_quote};
         $in_quote        = $line_of_tokens->{_ending_in_quote};
         $ending_in_quote = $in_quote;
-        $python_indentation_level =
-          $line_of_tokens->{_python_indentation_level};
+        $guessed_indentation_level =
+          $line_of_tokens->{_guessed_indentation_level};
 
         my $j;
         my $j_next;
@@ -8893,6 +8955,7 @@ sub set_white_space_flag {
         }
 
         # create a hanging side comment if appropriate
+        my $is_hanging_side_comment;
         if (
                $jmax == 0
             && $$rtoken_type[0] eq '#'    # only token is a comment
@@ -8908,6 +8971,7 @@ sub set_white_space_flag {
             # We will insert an empty qw string at the start of the token list
             # to force this comment to be a side comment. The vertical aligner
             # should then line it up with the previous side comment.
+            $is_hanging_side_comment = 1;
             unshift @$rtoken_type,            'q';
             unshift @$rtokens,                '';
             unshift @$rlevels,                $$rlevels[0];
@@ -8995,12 +9059,11 @@ sub set_white_space_flag {
         # Note: this test is placed here because we know the continuation flag
         # at this point, which allows us to avoid non-meaningful checks.
         my $structural_indentation_level = $$rlevels[0];
-        compare_indentation_levels( $python_indentation_level,
+        compare_indentation_levels( $guessed_indentation_level,
             $structural_indentation_level )
-          unless ( $python_indentation_level < 0
-            || ( $$rci_levels[0] > 0 )
-            || ( ( $python_indentation_level == 0 ) && $$rtoken_type[0] eq 'Q' )
-          );
+          unless ( $is_hanging_side_comment
+            || $$rci_levels[0] > 0
+            || $guessed_indentation_level == 0 && $$rtoken_type[0] eq 'Q' );
 
         #   Patch needed for MakeMaker.  Do not break a statement
         #   in which $VERSION may be calculated.  See MakeMaker.pm;
@@ -9052,11 +9115,6 @@ sub set_white_space_flag {
         push( @$rtoken_type, 'b', 'b' );
         ($rwhite_space_flag) =
           set_white_space_flag( $jmax, $rtokens, $rtoken_type, $rblock_type );
-
-        # find input tabbing to allow checks for tabbing disagreement
-        ## not used for now
-        ##$input_line_tabbing = "";
-        ##if ( $input_line =~ /^(\s*)/ ) { $input_line_tabbing = $1; }
 
         # if the buffer hasn't been flushed, add a leading space if
         # necessary to keep essential whitespace. This is really only
@@ -9799,7 +9857,6 @@ sub output_line_to_go {
     if ( $imin <= $imax ) {
 
         # add a blank line before certain key types but not after a comment
-        ##if ( $last_line_leading_type !~ /^[#b]/ ) {
         if ( $last_line_leading_type !~ /^[#]/ ) {
             my $want_blank    = 0;
             my $leading_token = $tokens_to_go[$imin];
@@ -9880,7 +9937,7 @@ sub output_line_to_go {
 
         FORMATTER_DEBUG_FLAG_FLUSH && do {
             my ( $package, $file, $line ) = caller;
-            print
+            print STDOUT
 "FLUSH: flushing from $package $file $line, types= $types_to_go[$imin] to $types_to_go[$imax]\n";
         };
 
@@ -10039,7 +10096,7 @@ sub starting_one_line_block {
 
     # find the starting keyword for this block (such as 'if', 'else', ...)
 
-    if ( $block_type =~ /^[\{\}\;\:]$/ ) {
+    if ( $block_type =~ /^[\{\}\;\:]$/ || $block_type =~ /^package/ ) {
         $i_start = $max_index_to_go;
     }
 
@@ -10061,9 +10118,9 @@ sub starting_one_line_block {
 
     # the previous nonblank token should start these block types
     elsif (
-        ( $last_last_nonblank_token_to_go eq $block_type )
-        || (   $block_type =~ /^sub/
-            && $last_last_nonblank_token_to_go =~ /^sub/ )
+           ( $last_last_nonblank_token_to_go eq $block_type )
+        || ( $block_type =~ /^sub/ )
+##            && $last_last_nonblank_token_to_go =~ /^sub/ )
       )
     {
         $i_start = $last_last_nonblank_index_to_go;
@@ -10097,7 +10154,7 @@ sub starting_one_line_block {
 
         # old whitespace could be arbitrarily large, so don't use it
         if   ( $$rtoken_type[$i] eq 'b' ) { $pos += 1 }
-        else                              { $pos += length( $$rtokens[$i] ) }
+        else                              { $pos += rtoken_length($i) }
 
         # Return false result if we exceed the maximum line length,
         if ( $pos > $rOpts_maximum_line_length ) {
@@ -10152,17 +10209,14 @@ sub starting_one_line_block {
                 && !$is_sort_map_grep{$block_type} )
             {
 
-                ## POSSIBLE FUTURE PATCH FOR IGNORING SIDE COMMENT LENGTHS
-                ## WHEN CHECKING FOR ONE-LINE BLOCKS:
-                ##  if (flag set) then (just add 1 to pos)
-                $pos += length( $$rtokens[$i_nonblank] );
+                $pos += rtoken_length($i_nonblank);
 
                 if ( $i_nonblank > $i + 1 ) {
 
                     # source whitespace could be anything, assume
                     # at least one space before the hash on output
                     if ( $$rtoken_type[ $i + 1 ] eq 'b' ) { $pos += 1 }
-                    else { $pos += length( $$rtokens[ $i + 1 ] ) }
+                    else { $pos += rtoken_length( $i + 1 ) }
                 }
 
                 if ( $pos >= $rOpts_maximum_line_length ) {
@@ -10357,6 +10411,30 @@ sub undo_lp_ci {
       (0) x ($continuation_line_count);
     @leading_spaces_to_go[ @$ri_first[ $line_1 .. $n ] ] =
       @reduced_spaces_to_go[ @$ri_first[ $line_1 .. $n ] ];
+}
+
+sub pad_token {
+
+    # insert $pad_spaces before token number $ipad
+    my ( $ipad, $pad_spaces ) = @_;
+    if ( $pad_spaces > 0 ) {
+        $tokens_to_go[$ipad] = ' ' x $pad_spaces . $tokens_to_go[$ipad];
+        for ( my $i = $ipad ; $i <= $max_index_to_go ; $i++ ) {
+            $summed_lengths_to_go[ $i + 1 ] += $pad_spaces;
+        }
+    }
+    elsif ( $pad_spaces == -1 && $tokens_to_go[$ipad] eq ' ' ) {
+        $tokens_to_go[$ipad] = "";
+    }
+    else {
+
+        # shouldn't happen
+        return;
+    }
+
+    for ( my $i = $ipad ; $i <= $max_index_to_go ; $i++ ) {
+        $summed_lengths_to_go[ $i + 1 ] += $pad_spaces;
+    }
 }
 
 sub set_logical_padding {
@@ -10647,7 +10725,7 @@ sub set_logical_padding {
             # A check is needed before we can make the pad.
             # If we are in a list with some long items, we want each
             # item to stand out.  So in the following example, the
-            # first line begining with '$casefold->' would look good
+            # first line beginning with '$casefold->' would look good
             # padded to align with the next line, but then it
             # would be indented more than the last line, so we
             # won't do it.
@@ -10767,7 +10845,7 @@ sub set_logical_padding {
 
                 if ( $pad_spaces == -1 ) {
                     if ( $ipad > $ibeg && $types_to_go[ $ipad - 1 ] eq 'b' ) {
-                        $tokens_to_go[ $ipad - 1 ] = '';
+                        pad_token( $ipad - 1, $pad_spaces );
                     }
                 }
                 $pad_spaces = 0;
@@ -10778,8 +10856,7 @@ sub set_logical_padding {
 
                 my $length_t = total_line_length( $ibeg, $iend );
                 if ( $pad_spaces + $length_t <= $rOpts_maximum_line_length ) {
-                    $tokens_to_go[$ipad] =
-                      ' ' x $pad_spaces . $tokens_to_go[$ipad];
+                    pad_token( $ipad, $pad_spaces );
                 }
             }
         }
@@ -11055,7 +11132,6 @@ sub set_block_text_accumulator {
 
     # this will contain the column number of the last character
     # of the closing side comment
-    ##$csc_last_label="" unless $csc_last_label;
     $leading_block_text_line_length =
       length($csc_last_label) +
       length($accumulating_text_for_block) +
@@ -11184,8 +11260,8 @@ sub accumulate_block_text {
 
                     # restore any leading text saved when we entered this block
                     if ( defined( $block_leading_text{$type_sequence} ) ) {
-                        ( $block_leading_text, $rblock_leading_if_elsif_text ) =
-                          @{ $block_leading_text{$type_sequence} };
+                        ( $block_leading_text, $rblock_leading_if_elsif_text )
+                          = @{ $block_leading_text{$type_sequence} };
                         $i_block_leading_text = $i;
                         delete $block_leading_text{$type_sequence};
                         $rleading_block_if_elsif_text =
@@ -11491,7 +11567,7 @@ sub add_closing_side_comment {
         # ..and either
         && (
 
-            # this is the last token (line doesnt have a side comment)
+            # this is the last token (line doesn't have a side comment)
             !$have_side_comment
 
             # or the old side comment is a closing side comment
@@ -11790,12 +11866,6 @@ sub send_lines_to_vertical_aligner {
           # and limit total to 10 character widths
           && token_sequence_length( $ibeg, $iend ) <= 10;
 
-##        $last_output_short_opening_token =
-##             $types_to_go[$iend] =~ /^[\{\(\[L]$/
-##          && $iend - $ibeg <= 2
-##          && $tokens_to_go[$ibeg] !~ /^sub/
-##          && token_sequence_length( $ibeg, $iend ) <= 10;
-
     }    # end of loop to output each line
 
     # remember indentation of lines containing opening containers for
@@ -11803,7 +11873,7 @@ sub send_lines_to_vertical_aligner {
     save_opening_indentation( $ri_first, $ri_last, $rindentation_list );
 }
 
-{        # begin make_alignment_patterns
+{    # begin make_alignment_patterns
 
     my %block_type_map;
     my %keyword_map;
@@ -11926,10 +11996,10 @@ sub send_lines_to_vertical_aligner {
                     # if we are not aligning on this paren...
                     if ( $matching_token_to_go[$i] eq '' ) {
 
-                        # Sum length from previous alignment, or start of line.
-                        # Note that we have to sum token lengths here because
-                        # padding has been done and so array $lengths_to_go
-                        # is now wrong.
+                      # Sum length from previous alignment, or start of line.
+                      # Note that we have to sum token lengths here because
+                      # padding has been done and so array $summed_lengths_to_go
+                      # is now wrong.
                         my $len =
                           length(
                             join( '', @tokens_to_go[ $i_start .. $i - 1 ] ) );
@@ -12567,7 +12637,7 @@ sub lookup_opening_indentation {
                 }
             }
 
-            # revert to default if it doesnt work
+            # revert to default if it doesn't work
             else {
                 $space_count = leading_spaces_to_go($ibeg);
                 if ( $default_adjust_indentation == 0 ) {
@@ -12873,7 +12943,6 @@ sub set_vertical_tightness_flags {
 
             # previous line ended in one of these
             # (add other cases if necessary; '=>' and '.' are not necessary
-            ##&& ($is_opening_token{$token_end} || $token_end eq ',')
             && !$block_type_to_go[$ibeg_next]
 
             # this is a line with just an opening token
@@ -13314,6 +13383,9 @@ sub terminal_type {
             $left_bond_strength{'->'}  = STRONG;
             $right_bond_strength{'->'} = VERY_STRONG;
 
+            $left_bond_strength{'CORE::'}  = NOMINAL;
+            $right_bond_strength{'CORE::'} = NO_BREAK;
+
             # breaking AFTER modulus operator is ok:
             @_ = qw" % ";
             @left_bond_strength{@_} = (STRONG) x scalar(@_);
@@ -13342,7 +13414,7 @@ sub terminal_type {
             $right_bond_strength{'.'} = STRONG;
             $left_bond_strength{'.'}  = 0.9 * NOMINAL + 0.1 * WEAK;
 
-            @_                       = qw"} ] ) ";
+            @_                       = qw"} ] ) R";
             @left_bond_strength{@_}  = (STRONG) x scalar(@_);
             @right_bond_strength{@_} = (NOMINAL) x scalar(@_);
 
@@ -13916,6 +13988,9 @@ sub terminal_type {
             elsif ( $type eq 'F' ) {
                 $bond_str = NO_BREAK;
             }
+            elsif ( $type eq 'CORE::' ) {
+                $bond_str = NO_BREAK;
+            }
 
             # use strict does not allow separating type info from trailing { }
             # testfile is readmail.pl
@@ -14054,7 +14129,7 @@ sub terminal_type {
             FORMATTER_DEBUG_FLAG_BOND && do {
                 my $str = substr( $token, 0, 15 );
                 $str .= ' ' x ( 16 - length($str) );
-                print
+                print STDOUT
 "BOND:  i=$i $str $type $next_nonblank_type depth=$total_nesting_depth strength=$bond_str_1 -> $bond_str -> $strength \n";
             };
         }
@@ -15778,8 +15853,8 @@ sub find_token_starting_list {
             # Shortcut method 1: for -lp and just one comma:
             # This is a no-brainer, just break at the comma.
             if (
-                $rOpts_line_up_parentheses        # -lp
-                && $item_count == 2               # two items, one comma
+                $rOpts_line_up_parentheses    # -lp
+                && $item_count == 2           # two items, one comma
                 && !$must_break_open
               )
             {
@@ -15828,7 +15903,7 @@ sub find_token_starting_list {
         # debug stuff
 
         FORMATTER_DEBUG_FLAG_SPARSE && do {
-            print
+            print STDOUT
 "SPARSE:cols=$columns commas=$comma_count items:$item_count ids=$identifier_count pairwidth=$pair_width fields=$number_of_fields lines packed: $packed_lines packed_cols=$packed_columns fmtd:$formatted_lines cols /line:$columns_per_line  unused:$unused_columns fmtd:$formatted_columns sparsity=$sparsity allow=$max_allowed_sparsity\n";
 
         };
@@ -16213,9 +16288,8 @@ sub set_nobreaks {
 
         FORMATTER_DEBUG_FLAG_NOBREAK && do {
             my ( $a, $b, $c ) = caller();
-            print(
-"NOBREAK: forced_breakpoint $forced_breakpoint_count from $a $c with i=$i max=$max_index_to_go type=$types_to_go[$i]\n"
-            );
+            print STDOUT
+"NOBREAK: forced_breakpoint $forced_breakpoint_count from $a $c with i=$i max=$max_index_to_go type=$types_to_go[$i]\n";
         };
 
         @nobreak_to_go[ $i .. $j ] = (1) x ( $j - $i + 1 );
@@ -16225,9 +16299,8 @@ sub set_nobreaks {
     else {
         FORMATTER_DEBUG_FLAG_NOBREAK && do {
             my ( $a, $b, $c ) = caller();
-            print(
-"NOBREAK ERROR: from $a $c with i=$i j=$j max=$max_index_to_go\n"
-            );
+            print STDOUT
+              "NOBREAK ERROR: from $a $c with i=$i j=$j max=$max_index_to_go\n";
         };
     }
 }
@@ -16261,7 +16334,7 @@ sub set_forced_breakpoint {
 
         FORMATTER_DEBUG_FLAG_FORCE && do {
             my ( $a, $b, $c ) = caller();
-            print
+            print STDOUT
 "FORCE forced_breakpoint $forced_breakpoint_count from $a $c with i=$i_nonblank max=$max_index_to_go tok=$tokens_to_go[$i_nonblank] type=$types_to_go[$i_nonblank] nobr=$nobreak_to_go[$i_nonblank]\n";
         };
 
@@ -16307,9 +16380,8 @@ sub undo_forced_breakpoint_stack {
 
             FORMATTER_DEBUG_FLAG_UNDOBP && do {
                 my ( $a, $b, $c ) = caller();
-                print(
-"UNDOBP: undo forced_breakpoint i=$i $forced_breakpoint_undo_count from $a $c max=$max_index_to_go\n"
-                );
+                print STDOUT
+"UNDOBP: undo forced_breakpoint i=$i $forced_breakpoint_undo_count from $a $c max=$max_index_to_go\n";
             };
         }
 
@@ -16317,9 +16389,8 @@ sub undo_forced_breakpoint_stack {
         else {
             FORMATTER_DEBUG_FLAG_UNDOBP && do {
                 my ( $a, $b, $c ) = caller();
-                print(
-"Program Bug: undo_forced_breakpoint from $a $c has i=$i but max=$max_index_to_go"
-                );
+                print STDOUT
+"Program Bug: undo_forced_breakpoint from $a $c has i=$i but max=$max_index_to_go";
             };
         }
     }
@@ -16371,7 +16442,8 @@ sub undo_forced_breakpoint_stack {
 
             # shouldn't happen because splice below decreases nmax on each pass:
             # but i get paranoid sometimes
-                die "Program bug-infinite loop in recombine breakpoints\n";
+                Perl::Tidy::Die
+                  "Program bug-infinite loop in recombine breakpoints\n";
             }
             $nmax_last  = $nmax;
             $more_to_do = 0;
@@ -16394,7 +16466,7 @@ sub undo_forced_breakpoint_stack {
                 #                    ^
                 #                    |
                 # We want to decide if we should remove the line break
-                # betwen the tokens at $iend_1 and $ibeg_2
+                # between the tokens at $iend_1 and $ibeg_2
                 #
                 # We will apply a number of ad-hoc tests to see if joining
                 # here will look ok.  The code will just issue a 'next'
@@ -16474,13 +16546,27 @@ sub undo_forced_breakpoint_stack {
                     #      PARAM2 => 'bar'
                     #  ) or die "Some_method didn't work";
                     #
+                    # But we do not want to do this for something like the -lp
+                    # option where the paren is not outdentable because the
+                    # trailing clause will be far to the right.
+                    #
+                    # The logic here is synchronized with the logic in sub
+                    # sub set_adjusted_indentation, which actually does
+                    # the outdenting.
+                    #
                     $previous_outdentable_closing_paren =
-                      $this_line_is_semicolon_terminated    # ends in ';'
-                      && $ibeg_1 == $iend_1    # only one token on last line
-                      && $tokens_to_go[$iend_1] eq
-                      ')'                      # must be structural paren
+                      $this_line_is_semicolon_terminated
 
-                      # only &&, ||, and : if no others seen
+                      # only one token on last line
+                      && $ibeg_1 == $iend_1
+
+                      # must be structural paren
+                      && $tokens_to_go[$iend_1] eq ')'
+
+                      # style must allow outdenting,
+                      && !$closing_token_indentation{')'}
+
+                      # only leading '&&', '||', and ':' if no others seen
                       # (but note: our count made below could be wrong
                       # due to intervening comments)
                       && ( $leading_amp_count == 0
@@ -16804,6 +16890,7 @@ sub undo_forced_breakpoint_stack {
 
                 # join lines identified above as capable of
                 # causing an outdented line with leading closing paren
+                # Note that we are skipping the rest of this section
                 if ($previous_outdentable_closing_paren) {
                     $forced_breakpoint_to_go[$iend_1] = 0;
                 }
@@ -17407,7 +17494,7 @@ sub break_equals {
     return unless (@insert_list);
 
     # One final check...
-    # scan second and thrid lines and be sure there are no assignments
+    # scan second and third lines and be sure there are no assignments
     # we want to avoid breaking at an = to make something like this:
     #    unless ( $icon =
     #           $html_icons{"$type-$state"}
@@ -17588,7 +17675,7 @@ sub set_continuation_breaks {
     #-------------------------------------------------------
     while ( $i_begin <= $imax ) {
         my $lowest_strength        = NO_BREAK;
-        my $starting_sum           = $lengths_to_go[$i_begin];
+        my $starting_sum           = $summed_lengths_to_go[$i_begin];
         my $i_lowest               = -1;
         my $i_test                 = -1;
         my $lowest_next_token      = '';
@@ -17626,22 +17713,39 @@ sub set_continuation_breaks {
 ##                  * ( ( 1 - $x )**( $b - 1 ) );
 
             # reduce strength a bit to break ties at an old breakpoint ...
-            $strength -= $tiny_bias
-              if $old_breakpoint_to_go[$i_test]
+            if (
+                $old_breakpoint_to_go[$i_test]
 
-              # which is a 'good' breakpoint, meaning ...
-              # we don't want to break before it
-              && !$want_break_before{$type}
+                # which is a 'good' breakpoint, meaning ...
+                # we don't want to break before it
+                && !$want_break_before{$type}
 
-              # and either we want to break before the next token
-              # or the next token is not short (i.e. not a '*', '/' etc.)
-              && $i_next_nonblank <= $imax
-              && (
-                $want_break_before{$next_nonblank_type}
-                || ( $lengths_to_go[ $i_next_nonblank + 1 ] -
-                    $lengths_to_go[$i_next_nonblank] > 2 )
-                || $next_nonblank_type =~ /^[\(\[\{L]$/
-              );
+                # and either we want to break before the next token
+                # or the next token is not short (i.e. not a '*', '/' etc.)
+                && $i_next_nonblank <= $imax
+                && (
+                    $want_break_before{$next_nonblank_type}
+                    || ( $summed_lengths_to_go[ $i_next_nonblank + 1 ] -
+                        $summed_lengths_to_go[$i_next_nonblank] > 2 )
+                    || $next_nonblank_type =~ /^[\(\[\{L]$/
+                )
+              )
+            {
+                $strength -= $tiny_bias;
+            }
+
+            # otherwise increase strength a bit if this token would be at the
+            # maximum line length.  This is necessary to avoid blinking
+            # in the above example when the -iob flag is added.
+            else {
+                my $len =
+                  $leading_spaces +
+                  $summed_lengths_to_go[ $i_test + 1 ] -
+                  $starting_sum;
+                if ( $len >= $rOpts_maximum_line_length ) {
+                    $strength += $tiny_bias;
+                }
+            }
 
             my $must_break = 0;
 
@@ -17698,7 +17802,7 @@ sub set_continuation_breaks {
                 && (
                     (
                         $leading_spaces +
-                        $lengths_to_go[ $i_next_nonblank + 1 ] -
+                        $summed_lengths_to_go[ $i_next_nonblank + 1 ] -
                         $starting_sum
                     ) > $rOpts_maximum_line_length
                 )
@@ -17720,7 +17824,7 @@ sub set_continuation_breaks {
                 && (
                     (
                         $leading_spaces +
-                        $lengths_to_go[ $i_test + 1 ] -
+                        $summed_lengths_to_go[ $i_test + 1 ] -
                         $starting_sum
                     ) < $rOpts_maximum_line_length
                 )
@@ -17805,20 +17909,40 @@ sub set_continuation_breaks {
                 }
             }
 
-            my $too_long =
-              ( $i_test >= $imax )
-              ? 1
-              : (
-                (
-                    $leading_spaces +
-                      $lengths_to_go[ $i_test + 2 ] -
-                      $starting_sum
-                ) > $rOpts_maximum_line_length
-              );
+            my $too_long = ( $i_test >= $imax );
+            if ( !$too_long ) {
+                my $next_length =
+                  $leading_spaces +
+                  $summed_lengths_to_go[ $i_test + 2 ] -
+                  $starting_sum;
+                $too_long = $next_length > $rOpts_maximum_line_length;
+
+                # To prevent blinkers we will avoid leaving a token exactly at
+                # the line length limit unless it is the last token or one of
+                # several "good" types.
+                #
+                # The following code was a blinker with -pbp before this
+                # modification:
+##                    $last_nonblank_token eq '('
+##                        && $is_indirect_object_taker{ $paren_type
+##                            [$paren_depth] }
+                # The issue causing the problem is that if the
+                # term [$paren_depth] gets broken across a line then
+                # the whitespace routine doesn't see both opening and closing
+                # brackets and will format like '[ $paren_depth ]'.  This
+                # leads to an oscillation in length depending if we break
+                # before the closing bracket or not.
+                if (  !$too_long
+                    && $i_test + 1 < $imax
+                    && $next_nonblank_type !~ /^[,\}\]\)R]$/ )
+                {
+                    $too_long = $next_length >= $rOpts_maximum_line_length;
+                }
+            }
 
             FORMATTER_DEBUG_FLAG_BREAK
-              && print
-"BREAK: testing i = $i_test imax=$imax $types_to_go[$i_test] $next_nonblank_type leading sp=($leading_spaces) next length = $lengths_to_go[$i_test+2] too_long=$too_long str=$strength\n";
+              && print STDOUT
+"BREAK: testing i = $i_test imax=$imax $types_to_go[$i_test] $next_nonblank_type leading sp=($leading_spaces) next length = $summed_lengths_to_go[$i_test+2] too_long=$too_long str=$strength\n";
 
             # allow one extra terminal token after exceeding line length
             # if it would strand this token.
@@ -17902,7 +18026,8 @@ sub set_continuation_breaks {
         $next_nonblank_token = $tokens_to_go[$i_next_nonblank];
 
         FORMATTER_DEBUG_FLAG_BREAK
-          && print "BREAK: best is i = $i_lowest strength = $lowest_strength\n";
+          && print STDOUT
+          "BREAK: best is i = $i_lowest strength = $lowest_strength\n";
 
         #-------------------------------------------------------
         # ?/: rule 2 : if we break at a '?', then break at its ':'
@@ -18091,8 +18216,8 @@ sub set_closing_breakpoint {
 # or missing brace
 sub compare_indentation_levels {
 
-    my ( $python_indentation_level, $structural_indentation_level ) = @_;
-    if ( ( $python_indentation_level ne $structural_indentation_level ) ) {
+    my ( $guessed_indentation_level, $structural_indentation_level ) = @_;
+    if ( $guessed_indentation_level ne $structural_indentation_level ) {
         $last_tabbing_disagreement = $input_line_number;
 
         if ($in_tabbing_disagreement) {
@@ -18102,7 +18227,7 @@ sub compare_indentation_levels {
 
             if ( $tabbing_disagreement_count <= MAX_NAG_MESSAGES ) {
                 write_logfile_entry(
-"Start indentation disagreement: input=$python_indentation_level; output=$structural_indentation_level\n"
+"Start indentation disagreement: input=$guessed_indentation_level; output=$structural_indentation_level\n"
                 );
             }
             $in_tabbing_disagreement    = $input_line_number;
@@ -18667,7 +18792,7 @@ BEGIN {
     use constant VALIGN_DEBUG_FLAG_TERNARY => 0;
 
     my $debug_warning = sub {
-        print "VALIGN_DEBUGGING with key $_[0]\n";
+        print STDOUT "VALIGN_DEBUGGING with key $_[0]\n";
     };
 
     VALIGN_DEBUG_FLAG_APPEND  && $debug_warning->('APPEND');
@@ -18707,6 +18832,7 @@ use vars qw(
   @side_comment_history
   $comment_leading_space_count
   $is_matching_terminal_line
+  $consecutive_block_comments
 
   $cached_line_text
   $cached_line_type
@@ -18789,6 +18915,7 @@ sub initialize {
     $rOpts_maximum_line_length      = $rOpts->{'maximum-line-length'};
     $rOpts_valign                   = $rOpts->{'valign'};
 
+    $consecutive_block_comments = 0;
     forget_side_comment();
 
     initialize_for_new_group();
@@ -18878,7 +19005,7 @@ sub make_alignment {
 }
 
 sub dump_alignments {
-    print
+    print STDOUT
 "Current Alignments:\ni\ttoken\tstarting_column\tcolumn\tstarting_line\tending_line\n";
     for my $i ( 0 .. $maximum_alignment_index ) {
         my $column          = $ralignment_list->[$i]->get_column();
@@ -18886,7 +19013,7 @@ sub dump_alignments {
         my $matching_token  = $ralignment_list->[$i]->get_matching_token();
         my $starting_line   = $ralignment_list->[$i]->get_starting_line();
         my $ending_line     = $ralignment_list->[$i]->get_ending_line();
-        print
+        print STDOUT
 "$i\t$matching_token\t$starting_column\t$column\t$starting_line\t$ending_line\n";
     }
 }
@@ -18986,8 +19113,18 @@ sub append_line {
       ( $jmax == 1 && $rtokens->[0] eq '#' && $rfields->[0] =~ /^\s*$/ );
     $is_outdented = 0 if $is_hanging_side_comment;
 
+    # Forget side comment alignment after seeing 2 or more block comments
+    my $is_block_comment = ( $jmax == 0 && $rfields->[0] =~ /^#/ );
+    if ($is_block_comment) {
+        $consecutive_block_comments++;
+    }
+    else {
+        if ( $consecutive_block_comments > 1 ) { forget_side_comment() }
+        $consecutive_block_comments = 0;
+    }
+
     VALIGN_DEBUG_FLAG_APPEND0 && do {
-        print
+        print STDOUT
 "APPEND0: entering lines=$maximum_line_index new #fields= $jmax, leading_count=$leading_space_count last_cmt=$last_comment_column force=$is_forced_break\n";
     };
 
@@ -19053,7 +19190,6 @@ sub append_line {
     # Patch to collect outdentable block COMMENTS
     # --------------------------------------------------------------------
     my $is_blank_line = "";
-    my $is_block_comment = ( $jmax == 0 && $rfields->[0] =~ /^#/ );
     if ( $group_type eq 'COMMENT' ) {
         if (
             (
@@ -19278,11 +19414,11 @@ sub append_line {
     # Step 8. Some old debugging stuff
     # --------------------------------------------------------------------
     VALIGN_DEBUG_FLAG_APPEND && do {
-        print "APPEND fields:";
+        print STDOUT "APPEND fields:";
         dump_array(@$rfields);
-        print "APPEND tokens:";
+        print STDOUT "APPEND tokens:";
         dump_array(@$rtokens);
-        print "APPEND patterns:";
+        print STDOUT "APPEND patterns:";
         dump_array(@$rpatterns);
         dump_alignments();
     };
@@ -19622,12 +19758,12 @@ sub fix_terminal_ternary {
 
     VALIGN_DEBUG_FLAG_TERNARY && do {
         local $" = '><';
-        print "CURRENT FIELDS=<@{$rfields_old}>\n";
-        print "CURRENT TOKENS=<@{$rtokens_old}>\n";
-        print "CURRENT PATTERNS=<@{$rpatterns_old}>\n";
-        print "UNMODIFIED FIELDS=<@{$rfields}>\n";
-        print "UNMODIFIED TOKENS=<@{$rtokens}>\n";
-        print "UNMODIFIED PATTERNS=<@{$rpatterns}>\n";
+        print STDOUT "CURRENT FIELDS=<@{$rfields_old}>\n";
+        print STDOUT "CURRENT TOKENS=<@{$rtokens_old}>\n";
+        print STDOUT "CURRENT PATTERNS=<@{$rpatterns_old}>\n";
+        print STDOUT "UNMODIFIED FIELDS=<@{$rfields}>\n";
+        print STDOUT "UNMODIFIED TOKENS=<@{$rtokens}>\n";
+        print STDOUT "UNMODIFIED PATTERNS=<@{$rpatterns}>\n";
     };
 
     # handle cases of leading colon on this line
@@ -19702,9 +19838,9 @@ sub fix_terminal_ternary {
 
     VALIGN_DEBUG_FLAG_TERNARY && do {
         local $" = '><';
-        print "MODIFIED TOKENS=<@tokens>\n";
-        print "MODIFIED PATTERNS=<@patterns>\n";
-        print "MODIFIED FIELDS=<@fields>\n";
+        print STDOUT "MODIFIED TOKENS=<@tokens>\n";
+        print STDOUT "MODIFIED PATTERNS=<@patterns>\n";
+        print STDOUT "MODIFIED FIELDS=<@fields>\n";
     };
 
     # all ok .. update the arrays
@@ -20204,7 +20340,7 @@ sub dump_array {
 
     # debug routine to dump array contents
     local $" = ')(';
-    print "(@_)\n";
+    print STDOUT "(@_)\n";
 }
 
 # flush() sends the current Perl::Tidy::VerticalAligner group down the
@@ -20239,7 +20375,7 @@ sub my_flush {
 
         VALIGN_DEBUG_FLAG_APPEND0 && do {
             my ( $a, $b, $c ) = caller();
-            print
+            print STDOUT
 "APPEND0: Flush called from $a $b $c for COMMENT group: lines=$maximum_line_index \n";
 
         };
@@ -20283,7 +20419,7 @@ sub my_flush {
             my $group_list_type = $group_lines[0]->get_list_type();
             my ( $a, $b, $c ) = caller();
             my $maximum_field_index = $group_lines[0]->get_jmax();
-            print
+            print STDOUT
 "APPEND0: Flush called from $a $b $c fields=$maximum_field_index list=$group_list_type lines=$maximum_line_index extra=$extra_indent_ok\n";
 
         };
@@ -20483,7 +20619,7 @@ sub improve_continuation_indentation {
     #          'tan'   => \&tan,
     #          'atan2' => \&atan2,
 
-    ## BUB: Deactivated####################
+    ## Deactivated####################
     # The trouble with this patch is that it may, for example,
     # move in some 'or's  or ':'s, and leave some out, so that the
     # left edge alignment suffers.
@@ -21297,7 +21433,7 @@ sub really_open_debug_file {
     my $debug_file = $self->{_debug_file};
     my $fh;
     unless ( $fh = IO::File->new("> $debug_file") ) {
-        warn("can't open $debug_file: $!\n");
+        Perl::Tidy::Warn("can't open $debug_file: $!\n");
     }
     $self->{_debug_file_opened} = 1;
     $self->{_fh}                = $fh;
@@ -21474,7 +21610,7 @@ BEGIN {
     use constant TOKENIZER_DEBUG_FLAG_TOKENIZE => 0;
 
     my $debug_warning = sub {
-        print "TOKENIZER_DEBUGGING with key $_[0]\n";
+        print STDOUT "TOKENIZER_DEBUGGING with key $_[0]\n";
     };
 
     TOKENIZER_DEBUG_FLAG_EXPECT   && $debug_warning->('EXPECT');
@@ -21590,8 +21726,7 @@ sub new {
         logger_object        => undef,
         starting_level       => undef,
         indent_columns       => 4,
-        tabs                 => 0,
-        entab_leading_space  => undef,
+        tabsize              => 8,
         look_for_hash_bang   => 0,
         trim_qw              => 1,
         look_for_autoloader  => 1,
@@ -21622,8 +21757,6 @@ sub new {
     # _in_attribute_list    flag telling if we are looking for attributes
     # _in_quote             flag telling if we are chasing a quote
     # _starting_level       indentation level of first line
-    # _input_tabstr         string denoting one indentation level of input file
-    # _know_input_tabstr    flag indicating if we know _input_tabstr
     # _line_buffer_object   object with get_line() method to supply source code
     # _diagnostics_object   place to write debugging information
     # _unexpected_error_count  error count used to limit output
@@ -21644,13 +21777,12 @@ sub new {
         _line_start_quote                   => -1,
         _starting_level                     => $args{starting_level},
         _know_starting_level                => defined( $args{starting_level} ),
-        _tabs                               => $args{tabs},
-        _entab_leading_space                => $args{entab_leading_space},
+        _tabsize                            => $args{tabsize},
         _indent_columns                     => $args{indent_columns},
         _look_for_hash_bang                 => $args{look_for_hash_bang},
         _trim_qw                            => $args{trim_qw},
-        _input_tabstr                       => "",
-        _know_input_tabstr                  => -1,
+        _continuation_indentation           => $args{continuation_indentation},
+        _outdent_labels                     => $args{outdent_labels},
         _last_line_number                   => $args{starting_line_number} - 1,
         _saw_perl_dash_P                    => 0,
         _saw_perl_dash_w                    => 0,
@@ -21915,7 +22047,7 @@ sub get_line {
         $input_line_separator = $2 . $input_line_separator;
     }
 
-    # for backwards compatability we keep the line text terminated with
+    # for backwards compatibility we keep the line text terminated with
     # a newline character
     $input_line .= "\n";
     $tokenizer_self->{_line_text} = $input_line;    # update
@@ -21948,21 +22080,21 @@ sub get_line {
     #   _ending_in_quote       - this line ends in a multi-line quote
     #                            (so don't trim trailing blanks!)
     my $line_of_tokens = {
-        _line_type                => 'EOF',
-        _line_text                => $input_line,
-        _line_number              => $input_line_number,
-        _rtoken_type              => undef,
-        _rtokens                  => undef,
-        _rlevels                  => undef,
-        _rslevels                 => undef,
-        _rblock_type              => undef,
-        _rcontainer_type          => undef,
-        _rcontainer_environment   => undef,
-        _rtype_sequence           => undef,
-        _rnesting_tokens          => undef,
-        _rci_levels               => undef,
-        _rnesting_blocks          => undef,
-        _python_indentation_level => -1,                   ## 0,
+        _line_type                 => 'EOF',
+        _line_text                 => $input_line,
+        _line_number               => $input_line_number,
+        _rtoken_type               => undef,
+        _rtokens                   => undef,
+        _rlevels                   => undef,
+        _rslevels                  => undef,
+        _rblock_type               => undef,
+        _rcontainer_type           => undef,
+        _rcontainer_environment    => undef,
+        _rtype_sequence            => undef,
+        _rnesting_tokens           => undef,
+        _rci_levels                => undef,
+        _rnesting_blocks           => undef,
+        _guessed_indentation_level => 0,
         _starting_in_quote    => 0,                    # to be set by subroutine
         _ending_in_quote      => 0,
         _curly_brace_depth    => $brace_depth,
@@ -22206,15 +22338,9 @@ sub get_line {
 
     # update indentation levels for log messages
     if ( $input_line !~ /^\s*$/ ) {
-        my $rlevels                      = $line_of_tokens->{_rlevels};
-        my $structural_indentation_level = $$rlevels[0];
-        my ( $python_indentation_level, $msg ) =
-          find_indentation_level( $input_line, $structural_indentation_level );
-        if ($msg) { write_logfile_entry("$msg") }
-        if ( $tokenizer_self->{_know_input_tabstr} == 1 ) {
-            $line_of_tokens->{_python_indentation_level} =
-              $python_indentation_level;
-        }
+        my $rlevels = $line_of_tokens->{_rlevels};
+        $line_of_tokens->{_guessed_indentation_level} =
+          guess_old_indentation_level($input_line);
     }
 
     # see if this line contains here doc targets
@@ -22310,9 +22436,14 @@ sub get_line {
 
 sub find_starting_indentation_level {
 
+    # We need to find the indentation level of the first line of the
+    # script being formatted.  Often it will be zero for an entire file,
+    # but if we are formatting a local block of code (within an editor for
+    # example) it may not be zero.  The user may specify this with the
+    # -sil=n parameter but normally doesn't so we have to guess.
+    #
     # USES GLOBAL VARIABLES: $tokenizer_self
-    my $starting_level    = 0;
-    my $know_input_tabstr = -1;    # flag for find_indentation_level
+    my $starting_level = 0;
 
     # use value if given as parameter
     if ( $tokenizer_self->{_know_starting_level} ) {
@@ -22327,8 +22458,7 @@ sub find_starting_indentation_level {
     # otherwise figure it out from the input file
     else {
         my $line;
-        my $i                            = 0;
-        my $structural_indentation_level = -1; # flag for find_indentation_level
+        my $i = 0;
 
         # keep looking at lines until we find a hash bang or piece of code
         my $msg = "";
@@ -22343,171 +22473,59 @@ sub find_starting_indentation_level {
             }
             next if ( $line =~ /^\s*#/ );    # skip past comments
             next if ( $line =~ /^\s*$/ );    # skip past blank lines
-            ( $starting_level, $msg ) =
-              find_indentation_level( $line, $structural_indentation_level );
-            if ($msg) { write_logfile_entry("$msg") }
+            $starting_level = guess_old_indentation_level($line);
             last;
         }
         $msg = "Line $i implies starting-indentation-level = $starting_level\n";
-
-        if ( $starting_level > 0 ) {
-
-            my $input_tabstr = $tokenizer_self->{_input_tabstr};
-            if ( $input_tabstr eq "\t" ) {
-                $msg .= "by guessing input tabbing uses 1 tab per level\n";
-            }
-            else {
-                my $cols = length($input_tabstr);
-                $msg .=
-                  "by guessing input tabbing uses $cols blanks per level\n";
-            }
-        }
         write_logfile_entry("$msg");
     }
     $tokenizer_self->{_starting_level} = $starting_level;
     reset_indentation_level($starting_level);
 }
 
-# Find indentation level given a input line.  At the same time, try to
-# figure out the input tabbing scheme.
-#
-# There are two types of calls:
-#
-# Type 1: $structural_indentation_level < 0
-#  In this case we have to guess $input_tabstr to figure out the level.
-#
-# Type 2: $structural_indentation_level >= 0
-#  In this case the level of this line is known, and this routine can
-#  update the tabbing string, if still unknown, to make the level correct.
+sub guess_old_indentation_level {
+    my ($line) = @_;
 
-sub find_indentation_level {
-    my ( $line, $structural_indentation_level ) = @_;
-
+    # Guess the indentation level of an input line.
+    #
+    # For the first line of code this result will define the starting
+    # indentation level.  It will mainly be non-zero when perltidy is applied
+    # within an editor to a local block of code.
+    #
+    # This is an impossible task in general because we can't know what tabs
+    # meant for the old script and how many spaces were used for one
+    # indentation level in the given input script.  For example it may have
+    # been previously formatted with -i=7 -et=3.  But we can at least try to
+    # make sure that perltidy guesses correctly if it is applied repeatedly to
+    # a block of code within an editor, so that the block stays at the same
+    # level when perltidy is applied repeatedly.
+    #
     # USES GLOBAL VARIABLES: $tokenizer_self
     my $level = 0;
-    my $msg   = "";
 
-    my $know_input_tabstr = $tokenizer_self->{_know_input_tabstr};
-    my $input_tabstr      = $tokenizer_self->{_input_tabstr};
+    # find leading tabs, spaces, and any statement label
+    my $spaces = 0;
+    if ( $line =~ /^(\t+)?(\s+)?(\w+:[^:])?/ ) {
 
-    # find leading whitespace
-    my $leading_whitespace = ( $line =~ /^(\s*)/ ) ? $1 : "";
+        # If there are leading tabs, we use the tab scheme for this run, if
+        # any, so that the code will remain stable when editing.
+        if ($1) { $spaces += length($1) * $tokenizer_self->{_tabsize} }
 
-    # make first guess at input tabbing scheme if necessary
-    if ( $know_input_tabstr < 0 ) {
+        if ($2) { $spaces += length($2) }
 
-        $know_input_tabstr = 0;
-
-        # When -et=n is used for the output formatting, we will assume that
-        # tabs in the input formatting were also produced with -et=n.  This may
-        # not be true, but it is the best guess because it will keep leading
-        # whitespace unchanged on repeated formatting on small pieces of code
-        # when -et=n is used.  Thanks to Sam Kington for this patch.
-        if ( my $tabsize = $tokenizer_self->{_entab_leading_space} ) {
-            $leading_whitespace =~ s{^ (\t*) }
-           { " " x (length($1) * $tabsize) }xe;
-            $input_tabstr = " " x $tokenizer_self->{_indent_columns};
-        }
-        elsif ( $tokenizer_self->{_tabs} ) {
-            $input_tabstr = "\t";
-            if ( length($leading_whitespace) > 0 ) {
-                if ( $leading_whitespace !~ /\t/ ) {
-
-                    my $cols = $tokenizer_self->{_indent_columns};
-
-                    if ( length($leading_whitespace) < $cols ) {
-                        $cols = length($leading_whitespace);
-                    }
-                    $input_tabstr = " " x $cols;
-                }
-            }
-        }
-        else {
-            $input_tabstr = " " x $tokenizer_self->{_indent_columns};
-
-            if ( length($leading_whitespace) > 0 ) {
-                if ( $leading_whitespace =~ /^\t/ ) {
-                    $input_tabstr = "\t";
-                }
-            }
-        }
-        $tokenizer_self->{_know_input_tabstr} = $know_input_tabstr;
-        $tokenizer_self->{_input_tabstr}      = $input_tabstr;
-    }
-
-    # determine the input tabbing scheme if possible
-    if (   ( $know_input_tabstr == 0 )
-        && ( length($leading_whitespace) > 0 )
-        && ( $structural_indentation_level > 0 ) )
-    {
-        my $saved_input_tabstr = $input_tabstr;
-
-        # check for common case of one tab per indentation level
-        if ( $leading_whitespace eq "\t" x $structural_indentation_level ) {
-            if ( $leading_whitespace eq "\t" x $structural_indentation_level ) {
-                $input_tabstr = "\t";
-                $msg          = "Guessing old indentation was tab character\n";
-            }
-        }
-
-        else {
-
-            # detab any tabs based on 8 blanks per tab
-            my $entabbed = "";
-            if ( $leading_whitespace =~ s/^\t+/        /g ) {
-                $entabbed = "entabbed";
-            }
-
-            # now compute tabbing from number of spaces
-            my $columns =
-              length($leading_whitespace) / $structural_indentation_level;
-            if ( $columns == int $columns ) {
-                $msg =
-                  "Guessing old indentation was $columns $entabbed spaces\n";
-            }
-            else {
-                $columns = int $columns;
-                $msg =
-"old indentation is unclear, using $columns $entabbed spaces\n";
-            }
-            $input_tabstr = " " x $columns;
-        }
-        $know_input_tabstr                    = 1;
-        $tokenizer_self->{_know_input_tabstr} = $know_input_tabstr;
-        $tokenizer_self->{_input_tabstr}      = $input_tabstr;
-
-        # see if mistakes were made
-        if ( ( $tokenizer_self->{_starting_level} > 0 )
-            && !$tokenizer_self->{_know_starting_level} )
-        {
-
-            if ( $input_tabstr ne $saved_input_tabstr ) {
-                complain(
-"I made a bad starting level guess; rerun with a value for -sil \n"
-                );
-            }
+        # correct for outdented labels
+        if ( $3 && $tokenizer_self->{'_outdent_labels'} ) {
+            $spaces += $tokenizer_self->{_continuation_indentation};
         }
     }
 
-    # use current guess at input tabbing to get input indentation level
-    #
-    # Patch to handle a common case of entabbed leading whitespace
-    # If the leading whitespace equals 4 spaces and we also have
-    # tabs, detab the input whitespace assuming 8 spaces per tab.
-    if ( length($input_tabstr) == 4 ) {
-        $leading_whitespace =~ s/^\t+/        /g;
-    }
-
-    if ( ( my $len_tab = length($input_tabstr) ) > 0 ) {
-        my $pos = 0;
-
-        while ( substr( $leading_whitespace, $pos, $len_tab ) eq $input_tabstr )
-        {
-            $pos += $len_tab;
-            $level++;
-        }
-    }
-    return ( $level, $msg );
+    # compute indentation using the value of -i for this run.
+    # If -i=0 is used for this run (which is possible) it doesn't matter
+    # what we do here but we'll guess that the old run used 4 spaces per level.
+    my $indent_columns = $tokenizer_self->{_indent_columns};
+    $indent_columns = 4 if ( !$indent_columns );
+    $level = int( $spaces / $indent_columns );
+    return ($level);
 }
 
 # This is a currently unused debug routine
@@ -23920,7 +23938,7 @@ sub prepare_for_a_new_file {
   # For example, I used 'v' for v-strings.
   #
   # *. Implement coding to recognize the $type of the token in this routine.
-  # This is the hardest part, and is best done by immitating or modifying
+  # This is the hardest part, and is best done by imitating or modifying
   # some of the existing coding.  For example, to recognize v-strings, I
   # patched 'sub scan_bare_identifier' to recognize v-strings beginning with
   # 'v' and 'sub scan_number' to recognize v-strings without the leading 'v'.
@@ -24183,7 +24201,7 @@ EOM
                 }
             }
 
-            unless ( $tok =~ /^\s*$/ ) {
+            unless ( $tok =~ /^\s*$/ || $tok eq 'CORE::' ) {
 
                 # try to catch some common errors
                 if ( ( $type eq 'n' ) && ( $tok ne '0' ) ) {
@@ -24319,7 +24337,7 @@ EOM
                     $brace_type[$brace_depth], $paren_depth,
                     $paren_type[$paren_depth]
                 );
-                print "TOKENIZE:(@debug_list)\n";
+                print STDOUT "TOKENIZE:(@debug_list)\n";
             };
 
             # turn off attribute list on first non-blank, non-bareword
@@ -24426,7 +24444,10 @@ EOM
                         $type = 'n';
                     }
                 }
-
+                elsif ( $tok_kw eq 'CORE::' ) {
+                    $type = $tok = $tok_kw;
+                    $i += 2;
+                }
                 elsif ( ( $tok eq 'strict' )
                     and ( $last_nonblank_token eq 'use' ) )
                 {
@@ -24492,7 +24513,11 @@ EOM
                             # Assume qw is used as a quote and okay, as in:
                             #  use constant qw{ DEBUG 0 };
                             # Not worth trying to parse for just a warning
-                            if ( $next_nonblank_token ne 'qw' ) {
+
+                            # NOTE: This warning is deactivated because recent
+                            # versions of perl do not complain here, but
+                            # the coding is retained for reference.
+                            if ( 0 && $next_nonblank_token ne 'qw' ) {
                                 warning(
 "Attempting to define constant '$next_nonblank_token' which is a perl keyword\n"
                                 );
@@ -24502,8 +24527,8 @@ EOM
                         # FIXME: could check for error in which next token is
                         # not a word (number, punctuation, ..)
                         else {
-                            $is_constant{$current_package}
-                              {$next_nonblank_token} = 1;
+                            $is_constant{$current_package}{$next_nonblank_token}
+                              = 1;
                         }
                     }
                 }
@@ -25480,7 +25505,7 @@ sub operator_expected {
     # OPERATOR.
     #
     # If a UNKNOWN is returned, the calling routine must guess. A major
-    # goal of this tokenizer is to minimize the possiblity of returning
+    # goal of this tokenizer is to minimize the possibility of returning
     # UNKNOWN, because a wrong guess can spoil the formatting of a
     # script.
     #
@@ -25583,6 +25608,13 @@ sub operator_expected {
         {
             $op_expected = UNKNOWN;
         }
+
+        # expecting VERSION or {} after package NAMESPACE
+        elsif ($statement_type =~ /^package\b/
+            && $last_nonblank_token =~ /^package\b/ )
+        {
+            $op_expected = TERM;
+        }
     }
 
     # no operator after many keywords, such as "die", "warn", etc
@@ -25654,7 +25686,7 @@ sub operator_expected {
     }
 
     TOKENIZER_DEBUG_FLAG_EXPECT && do {
-        print
+        print STDOUT
 "EXPECT: returns $op_expected for last type $last_nonblank_type token $last_nonblank_token\n";
     };
     return $op_expected;
@@ -25686,10 +25718,10 @@ sub label_ok {
         return $brace_type[$brace_depth];
     }
 
-    # otherwise, it is a label if and only if it follows a ';'
-    # (real or fake)
+    # otherwise, it is a label if and only if it follows a ';' (real or fake)
+    # or another label
     else {
-        return ( $last_nonblank_type eq ';' );
+        return ( $last_nonblank_type eq ';' || $last_nonblank_type eq 'J' );
     }
 }
 
@@ -25785,11 +25817,15 @@ sub code_block_type {
         }
     }
 
-    # or a sub definition
+    # or a sub or package BLOCK
     elsif ( ( $last_nonblank_type eq 'i' || $last_nonblank_type eq 't' )
         && $last_nonblank_token =~ /^(sub|package)\b/ )
     {
         return $last_nonblank_token;
+    }
+
+    elsif ( $statement_type =~ /^(sub|package)\b/ ) {
+        return $statement_type;
     }
 
     # user-defined subs with block parameters (like grep/map/eval)
@@ -26116,7 +26152,7 @@ sub decrease_nesting_depth {
                 if (
                     $saw_brace_error <= MAX_NAG_MESSAGES
 
-                    # if too many closing types have occured, we probably
+                    # if too many closing types have occurred, we probably
                     # already caught this error
                     && ( ( $diff > 0 ) || ( $saw_brace_error <= 0 ) )
                   )
@@ -26764,7 +26800,7 @@ sub scan_id_do {
     }
 
     TOKENIZER_DEBUG_FLAG_NSCAN && do {
-        print
+        print STDOUT
           "NSCAN: returns i=$i, tok=$tok, type=$type, state=$id_scan_state\n";
     };
     return ( $i, $tok, $type, $id_scan_state );
@@ -26812,6 +26848,19 @@ sub do_scan_package {
     # token following a 'package' token.
     # USES GLOBAL VARIABLES: $current_package,
 
+    # package NAMESPACE
+    # package NAMESPACE VERSION
+    # package NAMESPACE BLOCK
+    # package NAMESPACE VERSION BLOCK
+    #
+    # If VERSION is provided, package sets the $VERSION variable in the given
+    # namespace to a version object with the VERSION provided. VERSION must be
+    # a "strict" style version number as defined by the version module: a
+    # positive decimal number (integer or decimal-fraction) without
+    # exponentiation or else a dotted-decimal v-string with a leading 'v'
+    # character and at least three components.
+    # reference http://perldoc.perl.org/functions/package.html
+
     my ( $input_line, $i, $i_beg, $tok, $type, $rtokens, $rtoken_map,
         $max_token_index )
       = @_;
@@ -26840,10 +26889,17 @@ sub do_scan_package {
         if ($error) { warning("Possibly invalid package\n") }
         $current_package = $package;
 
-        # check for error
+        # we should now have package NAMESPACE
+        # now expecting VERSION, BLOCK, or ; to follow ...
+        # package NAMESPACE VERSION
+        # package NAMESPACE BLOCK
+        # package NAMESPACE VERSION BLOCK
         my ( $next_nonblank_token, $i_next ) =
           find_next_nonblank_token( $i, $rtokens, $max_token_index );
-        if ( $next_nonblank_token !~ /^[;\{\}]$/ ) {
+        if ( $next_nonblank_token =~ /^[v\.\d;\{\}]$/ ) {
+            $statement_type = $tok;
+        }
+        else {
             warning(
                 "Unexpected '$next_nonblank_token' after package name '$tok'\n"
             );
@@ -26981,9 +27037,9 @@ sub scan_identifier_do {
                 #  howdy::123::bubba();
                 #
             }
-            elsif ( $tok =~ /^[0-9]/ ) {              # numeric
+            elsif ( $tok =~ /^[0-9]/ ) {    # numeric
                 $saw_alpha     = 1;
-                $id_scan_state = ':';                 # now need ::
+                $id_scan_state = ':';       # now need ::
                 $identifier .= $tok;
             }
             elsif ( $tok eq '::' ) {
@@ -27341,9 +27397,9 @@ sub scan_identifier_do {
 
     TOKENIZER_DEBUG_FLAG_SCAN_ID && do {
         my ( $a, $b, $c ) = caller;
-        print
+        print STDOUT
 "SCANID: called from $a $b $c with tok, i, state, identifier =$tok_begin, $i_begin, $id_scan_state_begin, $identifier_begin\n";
-        print
+        print STDOUT
 "SCANID: returned with tok, i, state, identifier =$tok, $i, $id_scan_state, $identifier\n";
     };
     return ( $i, $tok, $type, $id_scan_state, $identifier );
@@ -27826,7 +27882,8 @@ sub scan_number_do {
     # handle octal, hex, binary
     if ( !defined($number) ) {
         pos($input_line) = $pos_beg;
-        if ( $input_line =~ /\G[+-]?0((x[0-9a-fA-F_]+)|([0-7_]+)|(b[01_]+))/g )
+        if ( $input_line =~
+            /\G[+-]?0(([xX][0-9a-fA-F_]+)|([0-7_]+)|([bB][01_]+))/g )
         {
             $pos = pos($input_line);
             my $numc = $pos - $pos_beg;
@@ -28095,7 +28152,7 @@ sub follow_quoted_string {
     my $quoted_string = "";
 
     TOKENIZER_DEBUG_FLAG_QUOTE && do {
-        print
+        print STDOUT
 "QUOTE entering with quote_pos = $quote_pos i=$i beginning_tok =$beginning_tok\n";
     };
 
@@ -28398,7 +28455,7 @@ sub show_tokens {
 
     for ( $i = 0 ; $i < $num ; $i++ ) {
         my $len = length( $$rtokens[$i] );
-        print "$i:$len:$$rtoken_map[$i]:$$rtokens[$i]:\n";
+        print STDOUT "$i:$len:$$rtoken_map[$i]:$$rtokens[$i]:\n";
     }
 }
 
@@ -28522,8 +28579,7 @@ BEGIN {
       #;
     push( @valid_token_types, @digraphs );
     push( @valid_token_types, @trigraphs );
-    push( @valid_token_types, '#' );
-    push( @valid_token_types, ',' );
+    push( @valid_token_types, ( '#', ',', 'CORE::' ) );
     @is_valid_token_type{@valid_token_types} = (1) x scalar(@valid_token_types);
 
     # a list of file test letters, as in -e (Table 3-4 of 'camel 3')
@@ -28974,7 +29030,6 @@ BEGIN {
 
     # These are not used in any way yet
     #    my @unused_keywords = qw(
-    #      CORE
     #     __FILE__
     #     __LINE__
     #     __PACKAGE__
@@ -29003,7 +29058,7 @@ Perl::Tidy - Parses and beautifies perl source
 
     use Perl::Tidy;
 
-    Perl::Tidy::perltidy(
+    my $error_flag = Perl::Tidy::perltidy(
         source            => $source,
         destination       => $destination,
         stderr            => $stderr,
@@ -29029,6 +29084,11 @@ For example, the perltidy script is basically just this:
 
     use Perl::Tidy;
     Perl::Tidy::perltidy();
+
+The call to B<perltidy> returns a scalar B<$error_flag> which is TRUE if an
+error caused premature termination, and FALSE if the process ran to normal
+completion.  Additional discuss of errors is contained below in the L<ERROR
+HANDLING> section.
 
 The module accepts input and output streams by a variety of methods.
 The following list of parameters may be any of the following: a
@@ -29075,15 +29135,39 @@ file or memory location to receive output of perltidy.
 
 =item stderr
 
-The B<stderr> parameter allows the calling program to redirect to a file the
-output of what would otherwise go to the standard error output device.  Unlike
-many other parameters, $stderr must be a file or file handle; it may not be a
-reference to a SCALAR or ARRAY.
+The B<stderr> parameter allows the calling program to redirect the stream that
+would otherwise go to the standard error output device to any of the stream
+types listed above.  This stream contains important warnings and errors 
+related to the parameters passed to perltidy.
 
 =item perltidyrc
 
 If the B<perltidyrc> file is given, it will be used instead of any
 F<.perltidyrc> configuration file that would otherwise be used. 
+
+=item errorfile
+
+The B<errorfile> parameter allows the calling program to capture
+the stream that would otherwise go to either a .ERR file.  This
+stream contains warnings or errors related to the contents of one
+source file or stream. 
+
+The reason that this is different from the stderr stream is that when perltidy
+is called to process multiple files there will be up to one .ERR file created
+for each file and it would be very confusing if they were combined.  
+
+However if perltidy is called to process just a single perl script then it may
+be more conveninent to combine the B<errorfile> stream with the B<stderr>
+stream.  This can be done by setting the B<-se> parameter, in which case this
+parameter is ignored.
+
+=item logfile
+
+The B<logfile> parameter allows the calling program to capture
+the stream that would otherwise go to a .LOG file.  This
+stream is only created if requested with a B<-g> parameter.  It 
+contains detailed diagnostic information about a script
+which may be useful for debugging.
 
 =item argv
 
@@ -29155,6 +29239,25 @@ B<filter_example.pl> in the perltidy distribution.
 
 =back
 
+=head1 ERROR HANDLING
+
+Perltidy will return with an error flag indicating if the process had to be
+terminated early due to errors in the input parameters.  This can happen for
+example if a parameter is misspelled or given an invalid value.  The calling
+program should check this flag because if it is set the destination stream will
+be empty or incomplete and should be ignored.  Error messages in the B<stderr>
+stream will indicate the cause of any problem.  
+
+If the error flag is not set then perltidy ran to completion.   However there
+may still be warning messages in the B<stderr> stream related to control
+parameters, and there may be warning messages in the B<errorfile> stream
+relating to possible syntax errors in the source code being tidied.  
+
+In the event of a catastrophic error for which recovery is not possible
+B<perltidy> terminates by making calls to B<croak> or B<confess> to help the
+programmer localize the problem.  These should normally only occur during
+program development.  
+
 =head1 NOTES ON FORMATTING PARAMETERS
 
 Parameters which control formatting may be passed in several ways: in a
@@ -29167,34 +29270,56 @@ data streams which are not associated with a filename will
 be copied to a temporary file before being be passed to Perl.  This
 use of temporary files can cause somewhat confusing output from Perl.
 
+If the B<-pbp> style is used it will typically be necessary to also
+specify a B<-nst> flag.  This is necessary to turn off the B<-st> flag
+contained in the B<-pbp> parameter set which otherwise would direct
+the output stream to the standard output.  
+
 =head1 EXAMPLES
 
-The perltidy script itself is a simple example, and several
-examples are given in the perltidy distribution.  
+The following example uses string references to hold the input and output
+code and error streams, and illustrates checking for errors.
 
-The following example passes perltidy a snippet as a reference
-to a string and receives the result back in a reference to
-an array.  
+  use Perl::Tidy;
+  
+  my $source_string = <<'EOT';
+  my$error=Perl::Tidy::perltidy(argv=>$argv,source=>\$source_string,
+    destination=>\$dest_string,stderr=>\$stderr_string,
+  errorfile=>\$errorfile_string,);
+  EOT
+  
+  my $dest_string;
+  my $stderr_string;
+  my $errorfile_string;
+  my $argv = "-npro";   # Ignore any .perltidyrc at this site
+  $argv .= " -pbp";     # Format according to perl best practices
+  $argv .= " -nst";     # Must turn off -st in case -pbp is specified
+  $argv .= " -se";      # -se appends the errorfile to stderr
+  ## $argv .= " --spell-check";  # uncomment to trigger an error
+  
+  print "<<RAW SOURCE>>\n$source_string\n";
+  
+  my $error = Perl::Tidy::perltidy(
+      argv        => $argv,
+      source      => \$source_string,
+      destination => \$dest_string,
+      stderr      => \$stderr_string,
+      errorfile   => \$errorfile_string,    # ignored when -se flag is set
+      ##phasers   => 'stun',                # uncomment to trigger an error
+  );
+  
+  if ($error) {
+  
+      # serious error in input parameters, no tidied output
+      print "<<STDERR>>\n$stderr_string\n";
+      die "Exiting because of serious errors\n";
+  }
+  
+  if ($dest_string)      { print "<<TIDIED SOURCE>>\n$dest_string\n" }
+  if ($stderr_string)    { print "<<STDERR>>\n$stderr_string\n" }
+  if ($errorfile_string) { print "<<.ERR file>>\n$errorfile_string\n" }
 
- use Perl::Tidy;
- 
- # some messy source code to format
- my $source = <<'EOM';
- use strict;
- my @editors=('Emacs', 'Vi   '); my $rand = rand();
- print "A poll of 10 random programmers gave these results:\n";
- foreach(0..10) {
- my $i=int ($rand+rand());
- print " $editors[$i] users are from Venus" . ", " . 
- "$editors[1-$i] users are from Mars" . 
- "\n";
- }
- EOM
- 
- # We'll pass it as ref to SCALAR and receive it in a ref to ARRAY
- my @dest;
- perltidy( source => \$source, destination => \@dest );
- foreach (@dest) {print}
+Additional examples are given in examples section of the perltidy distribution.  
 
 =head1 Using the B<formatter> Callback Object
 
@@ -29343,7 +29468,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20120701.
+This man page documents Perl::Tidy version 20120714.
 
 =head1 LICENSE
 

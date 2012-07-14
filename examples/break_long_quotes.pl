@@ -51,12 +51,15 @@ sub scan_file {
     unless ($fh) { die "cannot open '$file': $!\n" }
     my $formatter = MyWriter->new($line_length);
 
-    perltidy(
+    my $err=perltidy(
         'formatter' => $formatter,     # callback object
         'source'    => $fh,
         'argv'      => "-npro -se",    # dont need .perltidyrc
                                        # errors to STDOUT
     );
+    if ($err){
+        die "Error calling perltidy\n";
+    }
     $fh->close();
 } ## end sub scan_file
 

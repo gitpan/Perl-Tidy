@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2012-06-29" "perl v5.10.1" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2012-07-13" "perl v5.10.1" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -188,6 +188,12 @@ extension.  For any file with an error, there will be a file with extension
 Modify \fIfile1.pl\fR and \fIfile2.pl\fR in place, and backup the originals to
 \&\fIfile1.pl.bak\fR and \fIfile2.pl.bak\fR.  If \fIfile1.pl.bak\fR and/or \fIfile2.pl.bak\fR
 already exist, they will be overwritten.
+.PP
+.Vb 1
+\&  perltidy \-b \-bext=\*(Aq/\*(Aq file1.pl file2.pl
+.Ve
+.PP
+Same as the previous example except that the backup files \fIfile1.pl.bak\fR and \fIfile2.pl.bak\fR will be deleted if there are no errors.
 .PP
 .Vb 1
 \&  perltidy \-gnu somefile.pl
@@ -515,6 +521,18 @@ of indentation.  Certain other features are incompatible with this
 option, and if these options are also given, then a warning message will
 be issued and this flag will be unset.  One example is the \fB\-lp\fR
 option.
+.IP "\fB\-dt=n\fR,   \fB\-\-default\-tabsize=n\fR" 4
+.IX Item "-dt=n,   --default-tabsize=n"
+If the the first line of code passed to perltidy contains leading tabs but no
+tab scheme is specified for the output stream then perltidy must guess how many
+spaces correspond to each leading tab.  This number of spaces \fBn\fR
+corresponding to each leading tab of the input stream may be specified with
+\&\fB\-dt=n\fR.  The default is \fBn=8\fR.
+.Sp
+This flag has no effect if a tab scheme is specified for the output stream,
+because then the input stream is assumed to use the same tab scheme and
+indentation spaces as for the output stream (any other assumption would lead to
+unstable editing).
 .RE
 .RS 4
 .RE
@@ -590,9 +608,19 @@ can be useful when a major style change is being made, or when code is being
 beautified on check-in to a source code control system.  It has been found to
 be extremely rare for the output to change after 2 iterations.  If a value
 \&\fBn\fR is greater than 2 is input then a convergence test will be used to stop
-the iterations as soon as possible, almost always after 2 iterations.
+the iterations as soon as possible, almost always after 2 iterations.  See
+the next item for a simplified iteration control.
 .Sp
 This flag has no effect when perltidy is used to generate html.
+.IP "\fB\-conv\fR,   \fB\-\-converge\fR" 4
+.IX Item "-conv,   --converge"
+This flag is equivalent to \fB\-it=4\fR and is included to simplify iteration
+control.  For all practical purposes one either does or does not want to be
+sure that the output is converged, and there is no penalty to using a large
+iteration limit since perltidy will check for convergence and stop iterating as
+soon as possible.  The default is \fB\-nconv\fR (no convergence check).  Using
+\&\fB\-conv\fR will approximately double run time since normally one extra iteration
+is required to verify convergence.
 .SS "Code Indentation Control"
 .IX Subsection "Code Indentation Control"
 .IP "\fB\-ci=n\fR, \fB\-\-continuation\-indentation=n\fR" 4
@@ -727,7 +755,7 @@ abbreviation for \fB\-cpi=n \-csbi=n \-cbi=n\fR, where:
 .IX Item "-icp, --indent-closing-paren"
 The \fB\-icp\fR flag is equivalent to
 \&\fB\-cti=2\fR, described in the previous section.  The \fB\-nicp\fR flag is
-equivalent \fB\-cti=0\fR.  They are included for backwards compatability.
+equivalent \fB\-cti=0\fR.  They are included for backwards compatibility.
 .IP "\fB\-icb\fR, \fB\-\-indent\-closing\-brace\fR" 4
 .IX Item "-icb, --indent-closing-brace"
 The \fB\-icb\fR option gives one extra level of indentation to a brace which
@@ -1081,6 +1109,26 @@ right.  The default is n=4 spaces.
 .IX Item "-fpsc=n,  --fixed-position-side-comment=n"
 This parameter tells perltidy to line up side comments in column number \fBn\fR
 whenever possible.  The default, n=0, is not do do this.
+.IP "\fB\-iscl\fR,  \fB\-\-ignore\-side\-comment\-lengths\fR" 4
+.IX Item "-iscl,  --ignore-side-comment-lengths"
+This parameter causes perltidy to ignore the length of side comments when
+setting line breaks.  The default, \fB\-niscl\fR, is to include the length of 
+side comments when breaking lines to stay within the length prescribed
+by the \fB\-l=n\fR maximum line length parameter.  For example, the following
+long single line would remain intact with \-l=80 and \-iscl:
+.Sp
+.Vb 2
+\&     perltidy \-l=80 \-iscl
+\&        $vmsfile =~ s/;[\ed\e\-]*$//; # Clip off version number; we can use a newer version as well
+.Ve
+.Sp
+whereas without the \-iscl flag the line will be broken:
+.Sp
+.Vb 3
+\&     perltidy \-l=80
+\&        $vmsfile =~ s/;[\ed\e\-]*$//
+\&          ;    # Clip off version number; we can use a newer version as well
+.Ve
 .IP "\fB\-hsc\fR, \fB\-\-hanging\-side\-comments\fR" 4
 .IX Item "-hsc, --hanging-side-comments"
 By default, perltidy tries to identify and align \*(L"hanging side
@@ -2263,7 +2311,7 @@ This parameter interacts with the value \fBk\fR of the parameter
 for the previous item \fB\-blbs=n\fR.
 .IP "\fB\-bbs\fR,  \fB\-\-blanks\-before\-subs\fR" 4
 .IX Item "-bbs,  --blanks-before-subs"
-For compatability with previous versions, \fB\-bbs\fR or \fB\-\-blanks\-before\-subs\fR 
+For compatibility with previous versions, \fB\-bbs\fR or \fB\-\-blanks\-before\-subs\fR
 is equivalent to \fI\-blbp=1\fR and \fI\-blbs=1\fR.
 .Sp
 Likewise, \fB\-nbbs\fR or \fB\-\-noblanks\-before\-subs\fR 
@@ -2320,11 +2368,11 @@ The possible values of \fBn\fR are:
 The default is \fBn=1\fR.
 .IP "\fB\-sob\fR,  \fB\-\-swallow\-optional\-blank\-lines\fR" 4
 .IX Item "-sob,  --swallow-optional-blank-lines"
-This is equivalent to \fBkbl=0\fR and is included for compatability with
+This is equivalent to \fBkbl=0\fR and is included for compatibility with
 previous versions.
 .IP "\fB\-nsob\fR,  \fB\-\-noswallow\-optional\-blank\-lines\fR" 4
 .IX Item "-nsob,  --noswallow-optional-blank-lines"
-This is equivalent to \fBkbl=1\fR and is included for compatability with
+This is equivalent to \fBkbl=1\fR and is included for compatibility with
 previous versions.
 .SS "Styles"
 .IX Subsection "Styles"
@@ -2993,7 +3041,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20120701.
+This man page documents perltidy version 20120801.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with

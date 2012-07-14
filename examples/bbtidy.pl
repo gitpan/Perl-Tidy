@@ -11,11 +11,13 @@ BEGIN { my $input_string = ""; my $output_string = ""; }
 $input_string .= $_;
 
 END {
-    Perl::Tidy::perltidy(
+    my $err=Perl::Tidy::perltidy(
         source      => \$input_string,
         destination => \$output_string
     );
-
+    if ($err){
+        die "Error calling perltidy\n";
+    }
     print "$output_string\n";
 }
 

@@ -64,12 +64,15 @@ sub find_naughty {
     print "Testing File: $args{_source}\n";
 
     # run perltidy, which will call $formatter's write_line() for each line
-    perltidy(
+    my $err=perltidy(
         'source'    => $args{_source},
         'formatter' => bless( \%args, __PACKAGE__ ),    # callback object
         'argv' => "-npro -se",    # -npro : ignore .perltidyrc,
                                   # -se   : errors to STDOUT
     );
+    if ($err) {
+        die "Error calling perltidy\n";
+    }
 }
 
 sub write_line {

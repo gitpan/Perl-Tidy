@@ -262,7 +262,7 @@ sub read_perltidyrc {
     my $empty_file = "";    # this will be our .perltidyrc file
     my %Opts_default;       # this will receive the default options hash
     my %abbreviations_default;
-    Perl::Tidy::perltidy(
+    my $err = Perl::Tidy::perltidy(
         perltidyrc         => \$empty_file,
         dump_options       => \%Opts_default,
         dump_options_type  => 'full',                  # 'full' gives everything
@@ -270,6 +270,9 @@ sub read_perltidyrc {
         stderr             => \$stderr,
         argv               => \$argv,
     );
+    if ($err) {
+        die "Error calling perltidy\n";
+    }
 
     # now we call with a .perltidyrc file to get its parameters
     my %Getopt_flags;

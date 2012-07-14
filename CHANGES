@@ -1,4 +1,44 @@
 Perltidy Change Log
+  2012 07 14
+     - Added flag -iscl (--ignore-side-comment-lengths) which causes perltidy 
+       to ignore the length of side comments when setting line breaks, 
+       RT #71848.  The default is to include the length of side comments when
+       breaking lines to stay within the length prescribed by the -l=n
+       maximum line length parameter.  For example,
+
+         Default behavior on a single line with long side comment:
+            $vmsfile =~ s/;[\d\-]*$//
+              ;    # Clip off version number; we can use a newer version as well
+   
+         perltidy -iscl leaves the line intact:
+
+            $vmsfile =~ s/;[\d\-]*$//; # Clip off version number; we can use a newer version as well
+
+     - Fixed RT #78182, side effects with STDERR.  Error handling has been
+       revised and the documentation has been updated.  STDERR can now be 
+       redirected to a string reference, and perltidy now returns an 
+       error flag instead of calling die when input errors are detected. 
+       If the error flag is set then no tidied output was produced.
+       See man Perl::Tidy for an example.
+
+     - Fixed RT #78156, erroneous warning message for package VERSION syntax.
+
+     - Added abbreviations -conv (--converge) to simplify iteration control.
+       -conv is equivalent to -it=4 and will insure that the tidied code is
+       converged to its final state with the minimum number of iterations.
+
+     - Minor formatting modifications have been made to insure convergence.
+
+     - Simplified and hopefully improved the method for guessing the starting 
+       indentation level of entabbed code.  Added flag -dt=n (--default_tabsize=n) 
+       which might be helpful if the guessing method does not work well for
+       some editors.
+
+     - Added support for stacked labels, upper case X/B in hex and binary, and
+       CORE:: namespace.
+
+     - Eliminated warning messages for using keyword names as constants.
+
   2012 07 01
      - Corrected problem introduced by using a chomp on scalar references, RT #77978
 
@@ -81,7 +121,7 @@ Perltidy Change Log
        parameter is quoted.  For example, to define -sphb=# it used to be necessary
        to write
          -sbcp='#'
-       to keep the # from becomming part of a comment.  This was causing 
+       to keep the # from becoming part of a comment.  This was causing 
        trouble for new users.  Now it can also be written without quotes: 
          -sbcp=#
 
@@ -2212,7 +2252,7 @@ Perltidy Change Log
      -Corrected minor, uncommon bug found during routine testing, in which a
      blank got inserted between a function name and its opening paren after
      a file test operator, but only in the case that the function had not
-     been previously seen.  Perl uses the existance (or lack thereof) of 
+     been previously seen.  Perl uses the existence (or lack thereof) of 
      the blank to guess if it is a function call.  That is,
         if (-l pid_filename()) {
      became
@@ -2297,7 +2337,7 @@ Perltidy Change Log
      braces, while a new parameter -bbt (block-brace-tightness) applies to
      curly braces which contain code BLOCKS. The default value is -bbt=0.
 
-     -added flag -icp (--indent-closing-paren) which leaves a statment
+     -added flag -icp (--indent-closing-paren) which leaves a statement
      termination of the form );, };, or ]; indented with the same
      indentation as the previous line.  For example,
 

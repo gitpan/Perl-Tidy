@@ -44,13 +44,16 @@ my $formatter = MyFormatter->new();
 my $dest;
 
 # start perltidy, which will start calling our write_line()
-perltidy(
+my $err=perltidy(
     'formatter'   => $formatter,     # callback object
     'source'      => $source,
     'destination' => \$dest,         # (not really needed)
     'argv'        => "-npro -se",    # dont need .perltidyrc
                                      # errors to STDOUT
 );
+if ($err) {
+    die "Error calling perltidy\n";
+}
 $fh->close() if $fh;
 
 package MyFormatter;

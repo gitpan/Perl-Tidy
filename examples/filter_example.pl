@@ -26,13 +26,16 @@ use Perl::Tidy;
 # that the postfilter properly undoes the prefilter.
 
 my $arg_string = undef;
-Perl::Tidy::perltidy(
+my $err=Perl::Tidy::perltidy(
     argv => $arg_string,
     prefilter =>
       sub { $_ = $_[0]; s/^\s*method\s+(\w.*)/sub METHOD_$1/gm; return $_ },
     postfilter =>
       sub { $_ = $_[0]; s/sub\s+METHOD_/method /gm; return $_ }
 );
+if ($err) {
+    die "Error calling perltidy\n";
+}
 __END__
 
 # Try running on the following code (file filter_example.in):

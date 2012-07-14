@@ -73,6 +73,10 @@ Modify F<file1.pl> and F<file2.pl> in place, and backup the originals to
 F<file1.pl.bak> and F<file2.pl.bak>.  If F<file1.pl.bak> and/or F<file2.pl.bak>
 already exist, they will be overwritten.
 
+  perltidy -b -bext='/' file1.pl file2.pl
+
+Same as the previous example except that the backup files F<file1.pl.bak> and F<file2.pl.bak> will be deleted if there are no errors.
+
   perltidy -gnu somefile.pl
 
 Execute perltidy on file F<somefile.pl> with a style which approximates the
@@ -401,6 +405,19 @@ option, and if these options are also given, then a warning message will
 be issued and this flag will be unset.  One example is the B<-lp>
 option.
 
+=item B<-dt=n>,   B<--default-tabsize=n>
+
+If the the first line of code passed to perltidy contains leading tabs but no
+tab scheme is specified for the output stream then perltidy must guess how many
+spaces correspond to each leading tab.  This number of spaces B<n>
+corresponding to each leading tab of the input stream may be specified with
+B<-dt=n>.  The default is B<n=8>.  
+
+This flag has no effect if a tab scheme is specified for the output stream,
+because then the input stream is assumed to use the same tab scheme and
+indentation spaces as for the output stream (any other assumption would lead to
+unstable editing).
+
 =back
 
 =item B<-syn>,   B<--check-syntax>      
@@ -480,9 +497,20 @@ can be useful when a major style change is being made, or when code is being
 beautified on check-in to a source code control system.  It has been found to
 be extremely rare for the output to change after 2 iterations.  If a value
 B<n> is greater than 2 is input then a convergence test will be used to stop
-the iterations as soon as possible, almost always after 2 iterations.  
+the iterations as soon as possible, almost always after 2 iterations.  See
+the next item for a simplified iteration control.
 
 This flag has no effect when perltidy is used to generate html.
+
+=item B<-conv>,   B<--converge>
+
+This flag is equivalent to B<-it=4> and is included to simplify iteration
+control.  For all practical purposes one either does or does not want to be
+sure that the output is converged, and there is no penalty to using a large
+iteration limit since perltidy will check for convergence and stop iterating as
+soon as possible.  The default is B<-nconv> (no convergence check).  Using
+B<-conv> will approximately double run time since normally one extra iteration
+is required to verify convergence.
 
 =back
 
@@ -614,7 +642,7 @@ B<-cbi> or B<--closing-brace-indentation> controls non-block B<}>'s.
 
 The B<-icp> flag is equivalent to
 B<-cti=2>, described in the previous section.  The B<-nicp> flag is
-equivalent B<-cti=0>.  They are included for backwards compatability.
+equivalent B<-cti=0>.  They are included for backwards compatibility.
 
 =item B<-icb>, B<--indent-closing-brace>
 
@@ -965,6 +993,24 @@ right.  The default is n=4 spaces.
 
 This parameter tells perltidy to line up side comments in column number B<n>
 whenever possible.  The default, n=0, is not do do this.
+
+=item B<-iscl>,  B<--ignore-side-comment-lengths>
+
+This parameter causes perltidy to ignore the length of side comments when
+setting line breaks.  The default, B<-niscl>, is to include the length of 
+side comments when breaking lines to stay within the length prescribed
+by the B<-l=n> maximum line length parameter.  For example, the following
+long single line would remain intact with -l=80 and -iscl:
+
+     perltidy -l=80 -iscl
+        $vmsfile =~ s/;[\d\-]*$//; # Clip off version number; we can use a newer version as well
+
+whereas without the -iscl flag the line will be broken:
+
+     perltidy -l=80
+        $vmsfile =~ s/;[\d\-]*$//
+          ;    # Clip off version number; we can use a newer version as well
+   
 
 =item B<-hsc>, B<--hanging-side-comments>
 
@@ -2149,7 +2195,7 @@ for the previous item B<-blbs=n>.
 
 =item B<-bbs>,  B<--blanks-before-subs>
 
-For compatability with previous versions, B<-bbs> or B<--blanks-before-subs> 
+For compatibility with previous versions, B<-bbs> or B<--blanks-before-subs>
 is equivalent to F<-blbp=1> and F<-blbs=1>.  
 
 Likewise, B<-nbbs> or B<--noblanks-before-subs> 
@@ -2215,12 +2261,12 @@ The default is B<n=1>.
 
 =item B<-sob>,  B<--swallow-optional-blank-lines>
 
-This is equivalent to B<kbl=0> and is included for compatability with
+This is equivalent to B<kbl=0> and is included for compatibility with
 previous versions.
 
 =item B<-nsob>,  B<--noswallow-optional-blank-lines>
 
-This is equivalent to B<kbl=1> and is included for compatability with
+This is equivalent to B<kbl=1> and is included for compatibility with
 previous versions.
 
 =back
@@ -2910,7 +2956,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20120701.
+This man page documents perltidy version 20120801.
 
 =head1 CREDITS
 
