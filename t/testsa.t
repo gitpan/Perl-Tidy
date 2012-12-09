@@ -17,8 +17,8 @@ if ($seqno) {
   }
 }
 elsif (tok =~/[\)\]\}]/) {
-  $min_indentation = $indentation{$seqno}
-  delete $indentation{$seqno}
+  $min_indentation = $indentation{$seqno};
+  delete $indentation{$seqno};
   if ($indentation < $min_indentation) {$indentation = $min_indentation}
 }
 EOM
@@ -61,10 +61,9 @@ if ($seqno) {
         $indentation{$seqno} = indentation;
     }
 } elsif ( tok =~ /[\)\]\}]/ ) {
-    $min_indentation =
-      $indentation{$seqno} delete $indentation{$seqno}
-      if ( $indentation < $min_indentation )
-    {
+    $min_indentation = $indentation{$seqno};
+    delete $indentation{$seqno};
+    if ( $indentation < $min_indentation ) {
         $indentation = $min_indentation;
     }
 }

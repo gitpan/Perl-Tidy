@@ -1,4 +1,188 @@
 Perltidy Change Log
+  2012 12 07
+     - The flag -cab=n or --comma-arrow-breakpoints=n has been generalized
+       to give better control over breaking open short containers.  The
+       possible values are now:
+
+         n=0 break at all commas after =>  
+         n=1 stable: break at all commas after => if container is open,
+             EXCEPT FOR one-line containers
+         n=2 break at all commas after =>, BUT try to form the maximum
+             maximum one-line container lengths
+         n=3 do not treat commas after => specially at all 
+         n=4 break everything: like n=0 but also break a short container with
+             a => not followed by a comma
+         n=5 stable: like n=1 but ALSO break at open one-line containers (default)
+
+       New values n=4 and n=5 have been added to allow short blocks to be
+       broken open.  The new default is n=5, stable.  It should more closely
+       follow the breaks in the input file, and previously formatted code
+       should remain unchanged.  If this causes problems use -cab=1 to recover 
+       the former behavior.  Thanks to Tony Maszeroski for the suggestion.
+
+       To illustrate the need for the new options, if perltidy is given
+       the following code, then the old default (-cab=1) was to close up 
+       the 'index' container even if it was open in the source.  The new 
+       default (-cab=5) will keep it open if it was open in the source.
+
+        our $fancypkg = {
+            'ALL' => {
+                'index' => {
+                    'key' => 'value',
+                },
+                'alpine' => {
+                    'one'   => '+',
+                    'two'   => '+',
+                    'three' => '+',
+                },
+            }
+        };
+
+     - New debug flag --memoize (-mem).  This version contains a 
+       patch supplied by Jonathan Swartz which can significantly speed up
+       repeated calls to Perl::Tidy::perltidy in a single process by caching
+       the result of parsing the formatting parameters.  A factor of up to 10
+       speedup was achieved for masontidy (https://metacpan.org/module/masontidy).
+       The memoization patch is on by default but can be deactivated for 
+       testing with -nmem (or --no-memoize).
+
+     - New flag -tso (--tight-secret-operators) causes certain perl operator
+       sequences (secret operators) to be formatted "tightly" (without spaces).  
+       The most common of these are 0 +  and + 0 which become 0+ and +0.  The
+       operators currently modified by this flag are: 
+            =( )=  0+  +0  ()x!! ~~<>  ,=>
+       Suggested by by Philippe Bruhat. See https://metacpan.org/module/perlsecret
+       This flag is off by default.
+   
+     - New flag -vmll (--variable-maximum-line-length) makes the maximum
+       line length increase with the nesting depth of a line of code.  
+       Basically, it causes the length of leading whitespace to be ignored when
+       setting line breaks, so the formatting of a block of code is independent
+       of its nesting depth.  Try this option if you have deeply nested 
+       code or data structures, perhaps in conjunction with the -wc flag
+       described next.  The default is not todo this.
+ 
+     - New flag -wc=n (--whitespace-cycle=n) also addresses problems with
+       very deeply nested code and data structures.  When this parameter is
+       used and the nesting depth exceeds the value n, the leading whitespace 
+       will be reduced and start at 1 again.  The result is that deeply
+       nested blocks of code will shift back to the left. This occurs cyclically 
+       to any nesting depth.  This flag may be used either with or without -vmll.
+       The default is not to use this (-wc=0).
+
+     - Fixed RT #78764, error parsing smartmatch operator followed by anonymous
+       hash or array and then a ternary operator; two examples:
+
+        qr/3/ ~~ ['1234'] ? 1 : 0;
+        map { $_ ~~ [ '0', '1' ] ? 'x' : 'o' } @a;
+
+     - Fixed problem with specifying spaces around arrows using -wls='->'
+       and -wrs='->'.  Thanks to Alain Valleton for documenting this problem. 
+
+     - Implemented RT #53183, wishlist, lines of code with the same indentation
+       level which are contained with multiple stacked opening and closing tokens
+       (requested with flags -sot -sct) now have reduced indentation.  
+
+        # Default
+        $sender->MailMsg(
+            {
+                to      => $addr,
+                subject => $subject,
+                msg     => $body
+            }
+        );
+
+        # OLD: perltidy -sot -sct 
+        $sender->MailMsg( {
+                to      => $addr,
+                subject => $subject,
+                msg     => $body
+        } );
+
+        # NEW: perltidy -sot -sct 
+        $sender->MailMsg( {
+            to      => $addr,
+            subject => $subject,
+            msg     => $body
+        } );
+
+     - New flag -act=n (--all-containers-tightness=n) is an abbreviation for
+       -pt=n -sbt=n -bt=n -bbt=n, where n=0,1, or 2.  It simplifies input when all
+       containers have the same tightness. Using the same example:
+
+        # NEW: perltidy -sot -sct -act=2
+        $sender->MailMsg({
+            to      => $addr,
+            subject => $subject,
+            msg     => $body
+        });
+
+     - New flag -sac (--stack-all-containers) is an abbreviation for -sot -sct
+       This is part of wishlist item RT #53183. Using the same example again:
+
+        # NEW: perltidy -sac -act=2
+        $sender->MailMsg({
+            to      => $addr,
+            subject => $subject,
+            msg     => $body
+        });
+
+      - new flag -scbb (--stack-closing-block-brace) causes isolated closing 
+        block braces to stack as in the following example. (Wishlist item RT#73788)
+
+        DEFAULT:
+        for $w1 (@w1) {
+            for $w2 (@w2) {
+                for $w3 (@w3) {
+                    for $w4 (@w4) {
+                        push( @lines, "$w1 $w2 $w3 $w4\n" );
+                    }
+                }
+            }
+        }
+
+        perltidy -scbb:
+        for $w1 (@w1) {
+            for $w2 (@w2) {
+                for $w3 (@w3) {
+                    for $w4 (@w4) {
+                        push( @lines, "$w1 $w2 $w3 $w4\n" );
+                    } } } }
+
+       There is, at present, no flag to place these closing braces at the end
+       of the previous line. It seems difficult to develop good rules for 
+       doing this for a wide variety of code and data structures.
+
+     - Parameters defining block types may use a wildcard '*' to indicate
+       all block types.  Previously it was not possible to include bare blocks.
+ 
+     - A flag -sobb (--stack-opening-block-brace) has been introduced as an
+       alias for -bbvt=2 -bbvtl='*'.  So for example the following test code:
+
+       {{{{{{{ $testing }}}}}}}
+
+       cannot be formatted as above but can at least be kept vertically compact 
+       using perltidy -sobb -scbb
+
+       {   {   {   {   {   {   {   $testing
+                               } } } } } } }
+
+       Or even, perltidy -sobb -scbb -i=1 -bbt=2
+       {{{{{{{$testing
+             }}}}}}}
+
+
+     - Error message improved for conflicts due to -pbp; thanks to Djun Kim.
+  
+     - Fixed RT #80645, error parsing special array name '@$' when used as 
+       @{$} or $#{$}
+ 
+     - Eliminated the -chk debug flag which was included in version 20010406 to
+       do a one-time check for a bug with multi-line quotes.  It has not been
+       needed since then.
+
+     - Numerous other minor formatting improvements.
+
   2012 07 14
      - Added flag -iscl (--ignore-side-comment-lengths) which causes perltidy 
        to ignore the length of side comments when setting line breaks, 

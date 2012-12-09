@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2012-07-13" "perl v5.10.1" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2012-12-09" "perl v5.10.1" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -364,8 +364,13 @@ extension \fI.bak\fR.  Any existing \fI.bak\fR file will be deleted.  See next
 item for changing the default backup extension, and for eliminating the
 backup file altogether.
 .Sp
-A \fB\-b\fR flag will be ignored if input is from standard input, or
-if the \fB\-html\fR flag is set.
+A \fB\-b\fR flag will be ignored if input is from standard input or goes to
+standard output, or if the \fB\-html\fR flag is set.
+.Sp
+In particular, if you want to use both the \fB\-b\fR flag and the \fB\-pbp\fR
+(\-\-perl\-best\-practices) flag, then you must put a \fB\-nst\fR flag after the
+\&\fB\-pbp\fR flag because it contains a \fB\-st\fR flag as one of its components,
+which means that output will go to the standard output stream.
 .IP "\fB\-bext\fR=ext,    \fB\-\-backup\-file\-extension\fR=ext" 4
 .IX Item "-bext=ext,    --backup-file-extension=ext"
 This parameter serves two purposes: (1) to change the extension of the backup
@@ -487,15 +492,59 @@ pre\- and post-filters.  This can be useful in conjunction with a hierarchical
 set of \fI.perltidyrc\fR files to avoid unwanted code tidying.  See also
 \&\*(L"Skipping Selected Sections of Code\*(R" for a way to avoid tidying specific
 sections of code.
+.IP "\fB\-i=n\fR,  \fB\-\-indent\-columns=n\fR" 4
+.IX Item "-i=n,  --indent-columns=n"
+Use n columns per indentation level (default n=4).
 .IP "\fB\-l=n\fR, \fB\-\-maximum\-line\-length=n\fR" 4
 .IX Item "-l=n, --maximum-line-length=n"
 The default maximum line length is n=80 characters.  Perltidy will try
 to find line break points to keep lines below this length. However, long
 quotes and side comments may cause lines to exceed this length. 
 Setting \fB\-l=0\fR is equivalent to setting \fB\-l=(a large number)\fR.
-.IP "\fB\-i=n\fR,  \fB\-\-indent\-columns=n\fR" 4
-.IX Item "-i=n,  --indent-columns=n"
-Use n columns per indentation level (default n=4).
+.IP "\fB\-vmll\fR, \fB\-\-variable\-maximum\-line\-length\fR" 4
+.IX Item "-vmll, --variable-maximum-line-length"
+A problem arises using a fixed maximum line length with very deeply nested code
+and data structures because eventually the amount of leading whitespace used
+for indicating indation takes up most or all of the available line width,
+leaving little or no space for the actual code or data.  One solution is to use
+a vary long line length.  Another solution is to use the \fB\-vmll\fR flag, which
+basically tells perltidy to ignore leading whitespace when measuring the line
+length.
+.Sp
+To be precise, when the \fB\-vmll\fR parameter is set, the maximum line length of a
+line of code will be M+L*I, where
+.Sp
+.Vb 3
+\&      M is the value of \-\-maximum\-line\-length=M (\-l=M), default 80,
+\&      I is the value of \-\-indent\-columns=I (\-i=I), default 4,
+\&      L is the indentation level of the line of code
+.Ve
+.Sp
+When this flag is set, the choice of breakpoints for a block of code should be
+essentially independent of its nesting depth.  However, the absolute line
+lengths, including leading whitespace, can still be arbitrarily large.  This
+problem can be avoided by including the next parameter.
+.Sp
+The default is not to do this (\fB\-nvmll\fR).
+.IP "\fB\-wc=n\fR, \fB\-\-whitespace\-cycle=n\fR" 4
+.IX Item "-wc=n, --whitespace-cycle=n"
+This flag also addresses problems with very deeply nested code and data
+structures.  When the nesting depth exceeds the value \fBn\fR the leading
+whitespace will be reduced and start at a depth of 1 again.  The result is that
+blocks of code will shift back to the left rather than moving arbitrarily far
+to the right.  This occurs cyclically to any depth.
+.Sp
+For example if one level of indentation equals 4 spaces (\fB\-i=4\fR, the default),
+and one uses \fB\-wc=15\fR, then if the leading whitespace on a line exceeds about
+4*15=60 spaces it will be reduced back to 4*1=4 spaces and continue increasing
+from there.  If the whitespace never exceeds this limit the formatting remains
+unchanged.
+.Sp
+The combination of \fB\-vmll\fR and \fB\-wc=n\fR provides a solution to the problem of
+displaying arbitrarily deep data structures and code in a finite window,
+although \fB\-wc=n\fR may of course be used without \fB\-vmll\fR.
+.Sp
+The default is not to use this, which can also be indicated using \fB\-wc=0\fR.
 .IP "tabs" 4
 .IX Item "tabs"
 Using tab characters will almost certainly lead to future portability
@@ -899,6 +948,23 @@ example below.
 \& %bf = map { $_ => \-M $_ } grep {/\e.deb$/} dirents \*(Aq.\*(Aq;   # \-bbt=1
 \& %bf = map {$_ => \-M $_} grep {/\e.deb$/} dirents \*(Aq.\*(Aq;     # \-bbt=2
 .Ve
+.Sp
+To simplify input in the case that all of the tightness flags have the same
+value <n>, the parameter <\-act=n> or \fB\-\-all\-containers\-tightness=n\fR is an
+abbreviation for the combination <\-pt=n \-sbt=n \-bt=n \-bbt=n>.
+.IP "\fB\-tso\fR,   \fB\-\-tight\-secret\-operators\fR" 4
+.IX Item "-tso,   --tight-secret-operators"
+The flag \fB\-tso\fR causes certain perl token sequences (secret operators)
+which might be considered to be a single operator to be formatted \*(L"tightly\*(R"
+(without spaces).  The operators currently modified by this flag are:
+.Sp
+.Vb 1
+\&     0+  +0  ()x!! ~~<>  ,=>   =( )=
+.Ve
+.Sp
+For example the sequence \fB0 +\fR,  which converts a string to a number,
+would be formatted without a space: \fB0+\fR when the \fB\-tso\fR flag is set.  This
+flag is off by default.
 .IP "\fB\-sts\fR,   \fB\-\-space\-terminal\-semicolon\fR" 4
 .IX Item "-sts,   --space-terminal-semicolon"
 Some programmers prefer a space before all terminal semicolons.  The
@@ -1697,7 +1763,7 @@ comma and an opening token.  For example:
 \&      };
 .Ve
 .Sp
-The flag \fB\-otr\fR is actually a synonym for three other flags
+The flag \fB\-otr\fR is actually an abbreviation for three other flags
 which can be used to control parens, hash braces, and square brackets
 separately if desired:
 .Sp
@@ -1886,8 +1952,9 @@ For example, if we want to just apply this style to \f(CW\*(C`if\*(C'\fR,
 \&\f(CW\*(C`perltidy \-bli \-bbvt=1 \-bbvtl=\*(Aqif elsif else\*(Aq\*(C'\fR.
 .Sp
 There is no vertical tightness control for closing block braces; with
-the exception of one-line blocks, they will normally remain on a 
-separate line.
+one exception they they will be placed on separate lines.
+The exception is that a cascade of closing block braces may
+be stacked on a single line.  See \fB\-scbb\fR.
 .IP "\fB\-sot\fR,  \fB\-\-stack\-opening\-tokens\fR and related flags" 4
 .IX Item "-sot,  --stack-opening-tokens and related flags"
 The \fB\-sot\fR flag tells perltidy to \*(L"stack\*(R" opening tokens
@@ -1917,13 +1984,18 @@ For example:
 For detailed control of individual closing tokens the following
 controls can be used:
 .Sp
-.Vb 3
+.Vb 4
 \&  \-sop  or \-\-stack\-opening\-paren
 \&  \-sohb or \-\-stack\-opening\-hash\-brace
 \&  \-sosb or \-\-stack\-opening\-square\-bracket
+\&  \-sobb or \-\-stack\-opening\-block\-brace
 .Ve
 .Sp
-The flag \fB\-sot\fR is a synonym for \fB\-sop \-sohb \-sosb\fR.
+The flag \fB\-sot\fR is an abbreviation for \fB\-sop \-sohb \-sosb\fR.
+.Sp
+The flag \fB\-sobb\fR is a abbreviation for \fB\-bbvt=2 \-bbvtl='*'\fR.  This
+will case a cascade of opening block braces to appear on a single line,
+although this an uncommon occurrence except in test scripts.
 .IP "\fB\-sct\fR,  \fB\-\-stack\-closing\-tokens\fR and related flags" 4
 .IX Item "-sct,  --stack-closing-tokens and related flags"
 The \fB\-sct\fR flag tells perltidy to \*(L"stack\*(R" closing tokens
@@ -1969,13 +2041,33 @@ but does not try to hide them.  For example:
 For detailed control of the stacking of individual closing tokens the
 following controls can be used:
 .Sp
-.Vb 3
+.Vb 4
 \&  \-scp  or \-\-stack\-closing\-paren
 \&  \-schb or \-\-stack\-closing\-hash\-brace
 \&  \-scsb or \-\-stack\-closing\-square\-bracket
+\&  \-scbb or \-\-stack\-closing\-block\-brace
 .Ve
 .Sp
-The flag \fB\-sct\fR is a synonym for \fB\-scp \-schb \-scsb\fR.
+The flag \fB\-sct\fR is an abbreviation for stacking the non-block closing
+tokens, \fB\-scp \-schb \-scsb\fR.
+.Sp
+Stacking of closing block braces, \fB\-scbb\fR, causes a cascade of isolated
+closing block braces to be combined into a single line as in the following
+example:
+.Sp
+.Vb 7
+\&    # \-scbb:
+\&    for $w1 (@w1) {
+\&        for $w2 (@w2) {
+\&            for $w3 (@w3) {
+\&                for $w4 (@w4) {
+\&                    push( @lines, "$w1 $w2 $w3 $w4\en" );
+\&                } } } }
+.Ve
+.Sp
+To simplify input even further for the case in which both opening and closing
+non-block containers are stacked, the flag \fB\-sac\fR or \fB\-\-stack\-all\-containers\fR
+is an abbreviation for \fB\-sot \-sot\fR.
 .IP "\fB\-dnl\fR,  \fB\-\-delete\-old\-newlines\fR" 4
 .IX Item "-dnl,  --delete-old-newlines"
 By default, perltidy first deletes all old line break locations, and then it
@@ -2125,19 +2217,23 @@ of perltidy.
 .Ve
 .IP "\fB\-cab=n\fR,  \fB\-\-comma\-arrow\-breakpoints=n\fR" 4
 .IX Item "-cab=n,  --comma-arrow-breakpoints=n"
-A comma which follows a comma arrow, '=>', requires special
+A comma which follows a comma arrow, '=>', is given special
 consideration.  In a long list, it is common to break at all such
 commas.  This parameter can be used to control how perltidy breaks at
 these commas.  (However, it will have no effect if old comma breaks are
 being forced because \fB\-boc\fR is used).  The possible values of \fBn\fR are:
 .Sp
-.Vb 6
+.Vb 10
 \& n=0 break at all commas after =>  
-\& n=1 stable: break at all commas after => unless this would break
-\&     an existing one\-line container (default)
-\& n=2 break at all commas after =>, but try to form the maximum
+\& n=1 stable: break at all commas after => if container is open,
+\&     EXCEPT FOR one\-line containers
+\& n=2 break at all commas after =>, BUT try to form the maximum
 \&     maximum one\-line container lengths
-\& n=3 do not treat commas after => specially at all
+\& n=3 do not treat commas after => specially at all 
+\& n=4 break everything: like n=0 but ALSO break a short container with
+\&     a => not followed by a comma when \-vt=0 is used
+\& n=5 stable: like n=1 but ALSO break at open one\-line containers when
+\&     \-vt=0 is used (default)
 .Ve
 .Sp
 For example, given the following single line, perltidy by default will
@@ -2160,8 +2256,8 @@ Using \fB\-cab=0\fR will force a break after each comma-arrow item:
 .Sp
 If perltidy is subsequently run with this container broken, then by
 default it will break after each '=>' because the container is now
-broken.  To reform a one-line container, the parameter \fB\-cab=2\fR would
-be needed.
+broken.  To reform a one-line container, the parameter \fB\-cab=2\fR could
+be used.
 .Sp
 The flag \fB\-cab=3\fR can be used to prevent these commas from being
 treated specially.  In this case, an item such as \*(L"01\*(R" => 31 is
@@ -2397,8 +2493,40 @@ by Damian Conway:
 \&          **= += *= &= <<= &&= \-= /= |= >>= ||= //= .= %= ^= x="
 .Ve
 .Sp
-Note that the \-st and \-se flags make perltidy act as a filter on one file only.  
-These can be overridden with \-nst and \-nse if necessary.
+Please note that this parameter set includes \-st and \-se flags, which make
+perltidy act as a filter on one file only.  These can be overridden by placing
+\&\fB\-nst\fR and/or \fB\-nse\fR after the \-pbp parameter.
+.Sp
+Also note that the value of continuation indentation, \-ci=4, is equal to the
+value of the full indentation, \-i=4.  In some complex statements perltidy will
+produce nicer results with \-ci=2. This can be implemented by including \-ci=2
+after the \-pbp parameter.  For example,
+.Sp
+.Vb 11
+\&    # perltidy \-pbp
+\&    $self\->{_text} = (
+\&         !$section        ? \*(Aq\*(Aq
+\&        : $type eq \*(Aqitem\*(Aq ? "the $section entry"
+\&        :                   "the section on $section"
+\&        )
+\&        . (
+\&        $page
+\&        ? ( $section ? \*(Aq in \*(Aq : \*(Aq\*(Aq ) . "the $page$page_ext manpage"
+\&        : \*(Aq elsewhere in this document\*(Aq
+\&        );
+\&
+\&    # perltidy \-pbp \-ci=2
+\&    $self\->{_text} = (
+\&         !$section        ? \*(Aq\*(Aq
+\&        : $type eq \*(Aqitem\*(Aq ? "the $section entry"
+\&        :                   "the section on $section"
+\&      )
+\&      . (
+\&        $page
+\&        ? ( $section ? \*(Aq in \*(Aq : \*(Aq\*(Aq ) . "the $page$page_ext manpage"
+\&        : \*(Aq elsewhere in this document\*(Aq
+\&      );
+.Ve
 .SS "Other Controls"
 .IX Subsection "Other Controls"
 .IP "Deleting selected text" 4
@@ -2661,6 +2789,11 @@ around tokens.
 \&\fB\-\-dump\-want\-right\-space\fR or \fB\-dwrs\fR  will write the hash \f(CW%want_right_space\fR
 to standard output and quit.  See the section on controlling whitespace
 around tokens.
+.Sp
+\&\fB\-\-no\-memoize\fR or \fB\-nmem\fR  will turn of memoizing.
+Memoization can reduce run time when running perltidy repeatedly in a 
+single process.  It is on by default but can be deactivated for
+testing with \fB\-nmem\fR.
 .Sp
 \&\fB\-DEBUG\fR  will write a file with extension \fI.DEBUG\fR for each input file 
 showing the tokenization of all lines of code.
@@ -2944,7 +3077,7 @@ Several parameters which refer to code block types may be customized by also
 specifying an associated list of block types.  The type of a block is the name
 of the keyword which introduces that block, such as \fBif\fR, \fBelse\fR, or \fBsub\fR.
 An exception is a labeled block, which has no keyword, and should be specified
-with just a colon.
+with just a colon.  To specify all blocks use \fB'*'\fR.
 .PP
 For example, the following parameter specifies \f(CW\*(C`sub\*(C'\fR, labels, \f(CW\*(C`BEGIN\*(C'\fR, and
 \&\f(CW\*(C`END\*(C'\fR blocks:
@@ -2955,7 +3088,12 @@ For example, the following parameter specifies \f(CW\*(C`sub\*(C'\fR, labels, \f
 .PP
 (the meaning of the \-cscl parameter is described above.)  Note that
 quotes are required around the list of block types because of the
-spaces.
+spaces.  For another example, the following list specifies all block types
+for vertical tightness:
+.PP
+.Vb 1
+\&   \-bbvtl=\*(Aq*\*(Aq
+.Ve
 .SS "Specifying File Extensions"
 .IX Subsection "Specifying File Extensions"
 Several parameters allow default file extensions to be overridden.  For
@@ -3041,7 +3179,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20120801.
+This man page documents perltidy version 20121207.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with
@@ -3065,7 +3203,7 @@ see the \s-1CHANGES\s0 file.
 .Ve
 .SH "COPYRIGHT"
 .IX Header "COPYRIGHT"
-Copyright (c) 2000\-2010 by Steve Hancock
+Copyright (c) 2000\-2012 by Steve Hancock
 .SH "LICENSE"
 .IX Header "LICENSE"
 This package is free software; you can redistribute it and/or modify it
