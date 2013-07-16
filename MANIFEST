@@ -34,6 +34,7 @@ examples/testff.t
 examples/filter_example.pl
 examples/filter_example.in
 lib/Perl/Tidy.pm
+lib/Perl/Tidy.pod
 pm2pl
 t/test.t
 t/testsa.t

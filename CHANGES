@@ -1,4 +1,9 @@
 Perltidy Change Log
+  2013 07 17
+      - Fixed RT #86929, #86930, missing lhs of assignment.
+
+      - Fixed RT #84922, moved pod from Tidy.pm into Tidy.pod
+
   2012 12 07
      - The flag -cab=n or --comma-arrow-breakpoints=n has been generalized
        to give better control over breaking open short containers.  The
