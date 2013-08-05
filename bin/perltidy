@@ -1007,6 +1007,11 @@ multi-line C<qw> quotes to be left unchanged.  This option will not
 normally be necessary, but was added for testing purposes, because in
 some versions of perl, trimming C<qw> quotes changes the syntax tree.
 
+=item Trimming trailing whitespace from lines of POD
+
+B<-trp> or B<--trim-pod> will remove trailing whitespace from lines of POD.
+The default is not to do this.
+
 =back
 
 =head2 Comment Controls
@@ -3088,7 +3093,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20130717.
+This man page documents perltidy version 20130805.
 
 =head1 CREDITS
 

@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Perl-Tidy
-version:            20130717
+version:            20130805
 abstract:           indent and reformat perl scripts
 author:
     - Steve Hancock <perltidy@perltidy.sourceforge.net>

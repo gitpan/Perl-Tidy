@@ -1,4 +1,10 @@
 Perltidy Change Log
+  2013 08 05
+      - Fixed RT #87502, incorrect of parsing of smartmatch before hash brace
+  
+      - Added feature request RT #87330, trim whitespace after POD.
+        The flag -trp (--trim-pod) will trim trailing whitespace from lines of POD
+
   2013 07 17
       - Fixed RT #86929, #86930, missing lhs of assignment.
 

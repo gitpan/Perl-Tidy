@@ -78,7 +78,7 @@ use File::Basename;
 use File::Copy;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/07/17 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/08/05 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -1607,6 +1607,7 @@ sub generate_options {
     $add_option->( 'square-bracket-vertical-tightness-closing', 'sbvtc', '=i' );
     $add_option->( 'tight-secret-operators',                    'tso',   '!' );
     $add_option->( 'trim-qw',                                   'tqw',   '!' );
+    $add_option->( 'trim-pod',                                  'trp',   '!' );
     $add_option->( 'want-left-space',                           'wls',   '=s' );
     $add_option->( 'want-right-space',                          'wrs',   '=s' );
 
@@ -6609,6 +6610,7 @@ sub write_line {
             # the user may be using this section for any purpose whatsoever
             if ( $rOpts->{'delete-pod'} ) { $skip_line = 1; }
             if ( $rOpts->{'tee-pod'} )    { $tee_line  = 1; }
+            if ( $rOpts->{'trim-pod'} )   { $input_line =~ s/\s+$// }
             if (  !$skip_line
                 && $line_type eq 'POD_START'
                 && !$saw_END_or_DATA_ )
@@ -24328,9 +24330,10 @@ sub prepare_for_a_new_file {
                     $max_token_index );
 
                 # remember a preceding smartmatch operator
-                if ( $last_nonblank_type eq '~~' ) {
-                    $block_type = $last_nonblank_type;
-                }
+                ## SMARTMATCH
+                ##if ( $last_nonblank_type eq '~~' ) {
+                ##    $block_type = $last_nonblank_type;
+                ##}
 
                 # patch to promote bareword type to function taking block
                 if (   $block_type
@@ -24379,7 +24382,9 @@ sub prepare_for_a_new_file {
             # propagate type information for 'do' and 'eval' blocks, and also
             # for smartmatch operator.  This is necessary to enable us to know
             # if an operator or term is expected next.
-            if ( $is_block_operator{$block_type} || $block_type eq '~~' ) {
+            ## SMARTMATCH
+            ##if ( $is_block_operator{$block_type} || $block_type eq '~~' ) {
+            if ( $is_block_operator{$block_type} ) {
                 $tok = $block_type;
             }
 
