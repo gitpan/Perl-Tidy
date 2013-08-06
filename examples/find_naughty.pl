@@ -40,7 +40,7 @@ foreach my $source (@ARGV) {
 # The PerlTokenSearch package is an interface to perltidy which accepts a
 # source filehandle and looks for selected variables.
 #
-# It works by making a a callback object with a write_line() method to
+# It works by making a callback object with a write_line() method to
 # receive tokenized lines from perltidy.  
 #
 # Usage:

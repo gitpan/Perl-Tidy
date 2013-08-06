@@ -287,7 +287,7 @@ use two leading dashes for long names, but one may be used.
 .PP
 Most parameters which serve as on/off flags can be negated with a
 leading \*(L"n\*(R" (for the short name) or a leading \*(L"no\*(R" or \*(L"no\-\*(R" (for the
-long name).  For example, the flag to outdent long quotes is is \fB\-olq\fR
+long name).  For example, the flag to outdent long quotes is \fB\-olq\fR
 or \fB\-\-outdent\-long\-quotes\fR.  The flag to skip this is \fB\-nolq\fR
 or \fB\-\-nooutdent\-long\-quotes\fR or \fB\-\-no\-outdent\-long\-quotes\fR.
 .PP
@@ -505,7 +505,7 @@ Setting \fB\-l=0\fR is equivalent to setting \fB\-l=(a large number)\fR.
 .IX Item "-vmll, --variable-maximum-line-length"
 A problem arises using a fixed maximum line length with very deeply nested code
 and data structures because eventually the amount of leading whitespace used
-for indicating indation takes up most or all of the available line width,
+for indicating indentation takes up most or all of the available line width,
 leaving little or no space for the actual code or data.  One solution is to use
 a vary long line length.  Another solution is to use the \fB\-vmll\fR flag, which
 basically tells perltidy to ignore leading whitespace when measuring the line
@@ -572,7 +572,7 @@ be issued and this flag will be unset.  One example is the \fB\-lp\fR
 option.
 .IP "\fB\-dt=n\fR,   \fB\-\-default\-tabsize=n\fR" 4
 .IX Item "-dt=n,   --default-tabsize=n"
-If the the first line of code passed to perltidy contains leading tabs but no
+If the first line of code passed to perltidy contains leading tabs but no
 tab scheme is specified for the output stream then perltidy must guess how many
 spaces correspond to each leading tab.  This number of spaces \fBn\fR
 corresponding to each leading tab of the input stream may be specified with
@@ -854,7 +854,7 @@ Use \fB\-nola\fR to not outdent labels.
 .IP "\fB\-okw\fR,  \fB\-\-outdent\-keywords\fR" 4
 .IX Item "-okw,  --outdent-keywords"
 .PD
-The command \fB\-okw\fR will will cause certain leading control keywords to
+The command \fB\-okw\fR will cause certain leading control keywords to
 be outdented by 2 spaces (or whatever \fB\-ci\fR has been set to), if
 possible.  By default, these keywords are \f(CW\*(C`redo\*(C'\fR, \f(CW\*(C`next\*(C'\fR, \f(CW\*(C`last\*(C'\fR,
 \&\f(CW\*(C`goto\*(C'\fR, and \f(CW\*(C`return\*(C'\fR.  The intention is to make these control keywords
@@ -1178,7 +1178,7 @@ right.  The default is n=4 spaces.
 .IP "\fB\-fpsc=n\fR,  \fB\-\-fixed\-position\-side\-comment=n\fR" 4
 .IX Item "-fpsc=n,  --fixed-position-side-comment=n"
 This parameter tells perltidy to line up side comments in column number \fBn\fR
-whenever possible.  The default, n=0, is not do do this.
+whenever possible.  The default, n=0, will not do this.
 .IP "\fB\-iscl\fR,  \fB\-\-ignore\-side\-comment\-lengths\fR" 4
 .IX Item "-iscl,  --ignore-side-comment-lengths"
 This parameter causes perltidy to ignore the length of side comments when
@@ -1327,7 +1327,7 @@ can still be achieved with \-ncscb:
 \&  } ## end foreach my $foo (sort { $b cmp $a ...
 .Ve
 .Sp
-However this causes a problem with editors editors which cannot recognize
+However this causes a problem with editors which cannot recognize
 comments or are not configured to do so because they cannot \*(L"bounce\*(R" around in
 the text correctly.  The \fB\-cscb\fR flag has been added to
 help them by appending appropriate balancing structure:
@@ -1502,7 +1502,7 @@ separated from the intervening comments, which typically begin with just a
 single '#'.
 .IP "\fB\-osbc\fR, \fB\-\-outdent\-static\-block\-comments\fR" 4
 .IX Item "-osbc, --outdent-static-block-comments"
-The command \fB\-osbc\fR will will cause static block comments to be outdented by 2
+The command \fB\-osbc\fR will cause static block comments to be outdented by 2
 spaces (or whatever \fB\-ci=n\fR has been set to), if possible.
 .RE
 .RS 4
@@ -1516,7 +1516,7 @@ when it is a side comment.
 .IP "\fB\-ssc\fR, \fB\-\-static\-side\-comments\fR" 4
 .IX Item "-ssc, --static-side-comments"
 When \fB\-ssc\fR is used, a side comment with a static leading pattern, which is
-\&\f(CW\*(C`##\*(C'\fR by default, will be be spaced only a single space from previous
+\&\f(CW\*(C`##\*(C'\fR by default, will be spaced only a single space from previous
 character, and it will not be vertically aligned with other side comments.
 .Sp
 The default is \fB\-nssc\fR.
@@ -1809,7 +1809,7 @@ Closing tokens (except for block braces) are controlled by \fB\-vtc=n\fR, or
 The rules for \fB\-vtc=1\fR are designed to maintain a reasonable balance
 between tightness and readability in complex lists.
 .IP "\(bu" 4
-Different controls may be applied to to different token types,
+Different controls may be applied to different token types,
 and it is also possible to control block braces; see below.
 .IP "\(bu" 4
 Finally, please note that these vertical tightness flags are merely
@@ -1956,7 +1956,7 @@ For example, if we want to just apply this style to \f(CW\*(C`if\*(C'\fR,
 \&\f(CW\*(C`perltidy \-bli \-bbvt=1 \-bbvtl=\*(Aqif elsif else\*(Aq\*(C'\fR.
 .Sp
 There is no vertical tightness control for closing block braces; with
-one exception they they will be placed on separate lines.
+one exception they will be placed on separate lines.
 The exception is that a cascade of closing block braces may
 be stacked on a single line.  See \fB\-scbb\fR.
 .IP "\fB\-sot\fR,  \fB\-\-stack\-opening\-tokens\fR and related flags" 4
@@ -2363,7 +2363,7 @@ With \fBperltidy \-kis\fR the multiple statements are retained:
 .Sp
 The statements are still subject to the specified value
 of \fBmaximum-line-length\fR and will be broken if this 
-maximum is exceeed.
+maximum is exceeded.
 .SS "Blank Line Control"
 .IX Subsection "Blank Line Control"
 Blank lines can improve the readability of a script if they are carefully
@@ -2386,7 +2386,7 @@ The parameter \fB\-blbs=n\fR requests that least \fBn\fR blank lines precede a s
 definition which does not follow a comment and which is more than one-line
 long.  The default is <\-blbs=1>.  \fB\s-1BEGIN\s0\fR and \fB\s-1END\s0\fR blocks are included.
 .Sp
-The requested number of blanks statement will be inserted regardless of of the
+The requested number of blanks statement will be inserted regardless of the
 value of \fB\-\-maximum\-consecutive\-blank\-lines=n\fR (\fB\-mbl=n\fR) with the exception
 that if \fB\-mbl=0\fR then no blanks will be output.
 .Sp
@@ -2586,7 +2586,7 @@ have a leading dot.  Further system-dependent information will be found
 in the \s-1INSTALL\s0 file distributed with perltidy.
 .Sp
 Under Windows, perltidy will also search for a configuration file named perltidy.ini since Windows does not allow files with a leading period (.).
-Use \f(CW\*(C`perltidy \-dpro\*(C'\fR to see the possbile locations for your system.
+Use \f(CW\*(C`perltidy \-dpro\*(C'\fR to see the possible locations for your system.
 An example might be \fIC:\eDocuments and Settings\eAll Users\eperltidy.ini\fR.
 .Sp
 Another option is the use of the \s-1PERLTIDY\s0 environment variable.
@@ -2602,7 +2602,7 @@ configuration file common to all users on the machine.  Be sure to enter the
 full path of the configuration file in the value of the environment variable.
 Ex.  PERLTIDY=C:\eDocuments and Settings\eperltidy.ini
 .Sp
-The configuation file is free format, and simply a list of parameters, just as
+The configuration file is free format, and simply a list of parameters, just as
 they would be entered on a command line.  Any number of lines may be used, with
 any number of parameters per line, although it may be easiest to read with one
 parameter per line.  Comment text begins with a #, and there must
@@ -3122,7 +3122,7 @@ The following list shows all short parameter names which allow a prefix
 \& D    anl asc  aws  b    bbb bbc bbs  bl   bli  boc bok  bol  bot  ce
 \& csc  dac dbc  dcsc ddf  dln dnl dop  dp   dpro dsc dsm  dsn  dtt  dwls
 \& dwrs dws f    fll  frm  fs  hsc html ibc  icb  icp iob  isbc lal  log
-\& lp   lsl ohbr okw  ola  oll opr opt  osbr otr  ple ple  pod  pvl  q
+\& lp   lsl ohbr okw  ola  oll opr opt  osbr otr  ple  pod  pvl  q
 \& sbc  sbl schb scp  scsb sct se  sfp  sfs  skp  sob sohb sop  sosb sot
 \& ssc  st  sts  syn  t    tac tbc toc  tp   tqw  tsc w    x    bar  kis
 .Ve
@@ -3183,7 +3183,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20130805.
+This man page documents perltidy version 20130806.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with

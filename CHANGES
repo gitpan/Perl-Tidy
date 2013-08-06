@@ -1,4 +1,7 @@
 Perltidy Change Log
+  2013 08 06
+      - Fixed RT #87107, spelling
+
   2013 08 05
       - Fixed RT #87502, incorrect of parsing of smartmatch before hash brace
   

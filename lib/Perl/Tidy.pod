@@ -105,7 +105,7 @@ is called to process multiple files there will be up to one .ERR file created
 for each file and it would be very confusing if they were combined.  
 
 However if perltidy is called to process just a single perl script then it may
-be more conveninent to combine the B<errorfile> stream with the B<stderr>
+be more convenient to combine the B<errorfile> stream with the B<stderr>
 stream.  This can be done by setting the B<-se> parameter, in which case this
 parameter is ignored.
 
@@ -394,7 +394,7 @@ B<examples> section of the source distribution.  Probably the best way
 to get started is to find one of the examples which most closely matches
 your application and start modifying it.
 
-For help with perltidy's pecular way of breaking lines into tokens, you
+For help with perltidy's peculiar way of breaking lines into tokens, you
 might run, from the command line, 
 
  perltidy -D filename
@@ -416,7 +416,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20130805.
+This man page documents Perl::Tidy version 20130806.
 
 =head1 LICENSE
 

@@ -80,7 +80,7 @@ if ($masked_file) { print $masked_file; }
 # a string or array.  It can also optionally return the original file
 # as a string or array.
 #
-# It works by making a a callback object with a write_line() method to
+# It works by making a callback object with a write_line() method to
 # receive tokenized lines from perltidy.  This write_line method
 # selectively replaces tokens with either their original text or with a
 # benign masking character (such as '#' or 'Q').

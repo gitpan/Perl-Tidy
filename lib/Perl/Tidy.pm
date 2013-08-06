@@ -20,7 +20,7 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-#    For brief instructions instructions, try 'perltidy -h'.
+#    For brief instructions, try 'perltidy -h'.
 #    For more complete documentation, try 'man perltidy'
 #    or visit http://perltidy.sourceforge.net
 #
@@ -78,7 +78,7 @@ use File::Basename;
 use File::Copy;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/08/05 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/08/06 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -747,7 +747,7 @@ EOM
             }
 
             # As a safety precaution, skip zero length files.
-            # If for example a source file got clobberred somehow,
+            # If for example a source file got clobbered somehow,
             # the old .tdy or .bak files might still exist so we
             # shouldn't overwrite them with zero length files.
             unless ( -s $input_file ) {
@@ -3006,7 +3006,7 @@ sub Win_Config_Locs {
     }
     else {
 
-        # This currently would only happen on a win32s computer.  I dont have
+        # This currently would only happen on a win32s computer.  I don't have
         # one to test, so I am unsure how to proceed.  Suggestions welcome!
         $$rpending_complaint .=
 "I dont know a sensible place to look for config files on an $os system.\n";
@@ -3579,7 +3579,7 @@ sub check_syntax {
         if ( $flags !~ /(^-x|\s+-x)/ ) { $flags .= " -x" }
     }
 
-    # this shouldn't happen unless a termporary file couldn't be made
+    # this shouldn't happen unless a temporary file couldn't be made
     if ( $istream eq '-' ) {
         $logger_object->write_logfile_entry(
             "Cannot run perl -c on STDIN and STDOUT\n");
@@ -3763,7 +3763,7 @@ sub close { return }
 # a getline method which reads lines (mode='r'), or
 # a print method which reads lines (mode='w')
 #
-# NOTE: this routine assumes that that there aren't any embedded
+# NOTE: this routine assumes that there aren't any embedded
 # newlines within any of the array elements.  There are no checks
 # for that.
 #
@@ -4209,7 +4209,7 @@ sub black_box {
 sub write_logfile_entry {
     my $self = shift;
 
-    # add leading >>> to avoid confusing error mesages and code
+    # add leading >>> to avoid confusing error messages and code
     $self->logfile_output( ">>>", "@_" );
 }
 
@@ -6846,7 +6846,7 @@ sub set_leading_whitespace {
                 # if we are beyond the midpoint
                 $gnu_position_predictor > $mll - $rOpts_maximum_line_length / 2
 
-                # or we are beyont the 1/4 point and there was an old
+                # or we are beyond the 1/4 point and there was an old
                 # break at the equals
                 || (
                     $gnu_position_predictor >
@@ -7269,7 +7269,7 @@ sub check_for_long_gnu_style_lines {
 
 sub finish_lp_batch {
 
-    # This routine is called once after each each output stream batch is
+    # This routine is called once after each output stream batch is
     # finished to undo indentation for all incomplete -lp
     # indentation levels.  It is too risky to leave a level open,
     # because then we can't backtrack in case of a long line to follow.
@@ -7716,8 +7716,8 @@ EOM
     push @_, ',';
     @is_anon_sub_brace_follower{@_} = (1) x scalar(@_);
 
-    # what can follow a one-line anonynomous sub closing curly:
-    # one-line anonumous subs also have ']' here...
+    # what can follow a one-line anonymous sub closing curly:
+    # one-line anonymous subs also have ']' here...
     # see tk3.t and PP.pm
     @_ = qw#  ; : => or and  && || ) ] ~~ !~~ #;
     push @_, ',';
@@ -8164,7 +8164,7 @@ EOM
           (      ( $tokenl =~ /([\'\w]|\:\:)$/ && $typel ne 'CORE::' )
               && ( $tokenr =~ /^([\'\w]|\:\:)/ ) )
 
-          # do not combine a number with a concatination dot
+          # do not combine a number with a concatenation dot
           # example: pom.caputo:
           # $vt100_compatible ? "\e[0;0H" : ('-' x 78 . "\n");
           || ( ( $typel eq 'n' ) && ( $tokenr eq '.' ) )
@@ -8977,7 +8977,7 @@ sub set_white_space_flag {
         #  $type = type
         #  $not_first_token = should be TRUE if this is not the first token of
         #   the line.  It might the index of this token in an array.  It is
-        #   used to test for a side comment vs a block commment.
+        #   used to test for a side comment vs a block comment.
         # Note: Eventually this should be the only routine determining the
         # length of a token in this package.
         my ( $token, $type, $not_first_token ) = @_;
@@ -9582,7 +9582,7 @@ sub set_white_space_flag {
                        $token =~ /^(s|tr|y|m|\/)/
                     && $last_nonblank_token =~ /^(=|==|!=)$/
 
-                    # precededed by simple scalar
+                    # preceded by simple scalar
                     && $last_last_nonblank_type eq 'i'
                     && $last_last_nonblank_token =~ /^\$/
 
@@ -9590,7 +9590,7 @@ sub set_white_space_flag {
                     # (but give complaint if we can's see far enough ahead)
                     && $next_nonblank_token =~ /^[; \)\}]$/
 
-                    # scalar is not decleared
+                    # scalar is not declared
                     && !(
                            $types_to_go[0] eq 'k'
                         && $tokens_to_go[0] =~ /^(my|our|local)$/
@@ -9779,7 +9779,7 @@ sub set_white_space_flag {
                         # patch until some block type issues are fixed:
                         # Do not add semi-colon for block types '{',
                         # '}', and ';' because we cannot be sure yet
-                        # that this is a block and not an anonomyous
+                        # that this is a block and not an anonymous
                         # hash (blktype.t, blktype1.t)
                         && ( $block_type !~ /^[\{\};]$/ )
 
@@ -10424,7 +10424,7 @@ sub starting_one_line_block {
     }
     else {
 
-        # cannot use one-line blocks with cuddled else else/elsif lines
+        # cannot use one-line blocks with cuddled else/elsif lines
         if ( ( $tokens_to_go[0] eq '}' ) && $rOpts_cuddled_else ) {
             return 0;
         }
@@ -10611,7 +10611,7 @@ sub write_unindented_line {
 sub undo_ci {
 
     # Undo continuation indentation in certain sequences
-    # For example, we can undo continuation indation in sort/map/grep chains
+    # For example, we can undo continuation indentation in sort/map/grep chains
     #    my $dat1 = pack( "n*",
     #        map { $_, $lookup->{$_} }
     #          sort { $a <=> $b }
@@ -10645,7 +10645,7 @@ sub undo_ci {
                     {
 
                         # chain continues...
-                        # check for chain ending at end of a a statement
+                        # check for chain ending at end of a statement
                         if ( $line == $max_line ) {
 
                             # see of this line ends a statement
@@ -11853,7 +11853,7 @@ sub make_else_csc_text {
         #  output = ## end foreach my $foo ( sort { $b  ...})
 
         # NOTE: This routine does not currently filter out structures within
-        # quoted text because the bounce algorithims in text editors do not
+        # quoted text because the bounce algorithms in text editors do not
         # necessarily do this either (a version of vim was checked and
         # did not do this).
 
@@ -12215,7 +12215,7 @@ sub send_lines_to_vertical_aligner {
               && ( ( $terminal_type eq ';' && $level_end <= $lev )
                 || ( $terminal_type ne ':' && $level_end < $lev ) )
 
-              # the termainal term must not contain any ternary terms, as in
+              # the terminal term must not contain any ternary terms, as in
               # my $ECHO = (
               #       $Is_MSWin32 ? ".\\echo$$"
               #     : $Is_MacOS   ? ":echo$$"
@@ -12380,7 +12380,7 @@ sub send_lines_to_vertical_aligner {
                     # Make the container name even more unique if necessary.
                     # If we are not vertically aligning this opening paren,
                     # append a character count to avoid bad alignment because
-                    # it usually looks bad to align commas within continers
+                    # it usually looks bad to align commas within containers
                     # for which the opening parens do not align.  Here
                     # is an example very BAD alignment of commas (because
                     # the atan2 functions are not all aligned):
@@ -12867,7 +12867,7 @@ sub lookup_opening_indentation {
                 # allow just one character before the comma
                 && $i_terminal == $ibeg + 1
 
-                # requre LIST environment; otherwise, we may outdent too much --
+                # require LIST environment; otherwise, we may outdent too much -
                 # this can happen in calls without parentheses (overload.t);
                 && $container_environment_to_go[$i_terminal] eq 'LIST'
               )
@@ -13757,7 +13757,7 @@ sub terminal_type {
     }
     else {
 
-        # start at end and walk bakwards..
+        # start at end and walk backwards..
         for ( my $i = $iend ; $i >= $ibeg ; $i-- ) {
 
             # skip past any side comment and blanks
@@ -13839,7 +13839,7 @@ sub terminal_type {
             #   5. Values below NOMINAL are considered ok break points.
             #   6. Values above NOMINAL are considered poor break points.
             #
-            # The bond strengths should roughly follow precenence order where
+            # The bond strengths should roughly follow precedence order where
             # possible.  If you make changes, please check the results very
             # carefully on a variety of scripts.  Testing with the -extrude
             # options is particularly helpful in exercising all of the rules.
@@ -13984,7 +13984,7 @@ sub terminal_type {
               x=
             );
 
-            # Default is is to break AFTER various assignment operators
+            # Default is to break AFTER various assignment operators
             @left_bond_strength{@_} = (STRONG) x scalar(@_);
             @right_bond_strength{@_} =
               ( 0.4 * WEAK + 0.6 * VERY_WEAK ) x scalar(@_);
@@ -14470,7 +14470,7 @@ sub terminal_type {
             # (extrude.t)
             elsif ( $type eq 'Z' ) {
 
-                # dont break..
+                # don't break..
                 if (
 
                     # if there is no blank and we do not want one. Examples:
@@ -15613,7 +15613,7 @@ sub pad_array_to_go {
                             set_forced_breakpoint( $last_dot_index[$depth] );
                         }
 
-                        # break before opening structure if preeced by another
+                        # break before opening structure if preceded by another
                         # closing structure and a comma.  This is normally
                         # done by the previous closing brace, but not
                         # if it was a one-line block.
@@ -16077,13 +16077,13 @@ sub find_token_starting_list {
         }
 
 #my ( $a, $b, $c ) = caller();
-#print "LISTX: in set_list $a $c interupt=$interrupted count=$item_count
+#print "LISTX: in set_list $a $c interrupt=$interrupted count=$item_count
 #i_first = $i_first_comma  i_last=$i_last_comma max=$max_index_to_go\n";
 #print "depth=$depth has_broken=$has_broken_sublist[$depth] is_multi=$is_multiline opening_paren=($i_opening_paren) \n";
 
         #---------------------------------------------------------------
         # Interrupted List Rule:
-        # A list is is forced to use old breakpoints if it was interrupted
+        # A list is forced to use old breakpoints if it was interrupted
         # by side comments or blank lines, or requested by user.
         #---------------------------------------------------------------
         if (   $rOpts_break_at_old_comma_breakpoints
@@ -16367,7 +16367,7 @@ sub find_token_starting_list {
                 # or if this is a sublist of a larger list
                 || $in_hierarchical_list
 
-                # or if multiple commas and we dont have a long first or last
+                # or if multiple commas and we don't have a long first or last
                 # term
                 || ( $comma_count > 1
                     && !( $long_last_term || $long_first_term ) )
@@ -17394,7 +17394,7 @@ sub undo_forced_breakpoint_stack {
                       && ( $leading_amp_count == 0
                         || $type_ibeg_2 !~ /^(:|\&\&|\|\|)$/ )
 
-                      # but leading colons probably line up with with a
+                      # but leading colons probably line up with a
                       # previous colon or question (count could be wrong).
                       && $type_ibeg_2 ne ':'
 
@@ -17788,7 +17788,7 @@ sub undo_forced_breakpoint_stack {
                         )
 
                         #  ... or this would strand a short quote , like this
-                        #                . "some long qoute"
+                        #                . "some long quote"
                         #                . "\n";
 
                         || (   $types_to_go[$i_next_nonblank] eq 'Q'
@@ -18603,7 +18603,7 @@ sub set_continuation_breaks {
                 # break It is only called if a breakpoint is required or
                 # desired.  This will probably need some adjustments
                 # over time.  A goal is to try to be sure that, if a new
-                # side comment is introduced into formated text, then
+                # side comment is introduced into formatted text, then
                 # the same breakpoints will occur.  scbreak.t
                 last
                   if (
@@ -20278,7 +20278,7 @@ sub eliminate_old_fields {
     my $case = 1;
 
     # See if case 2: both lines have leading '='
-    # We'll require smiliar leading patterns in this case
+    # We'll require similar leading patterns in this case
     my $old_rtokens   = $old_line->get_rtokens();
     my $rtokens       = $new_line->get_rtokens();
     my $rpatterns     = $new_line->get_rpatterns();
@@ -20669,7 +20669,7 @@ sub fix_terminal_else {
     # TBD: add handling for 'case'
     return unless ( $rfields_old->[0] =~ /^(if|elsif|unless)\s*$/ );
 
-    # look for the opening brace after the else, and extrace the depth
+    # look for the opening brace after the else, and extract the depth
     my $tok_brace = $rtokens->[0];
     my $depth_brace;
     if ( $tok_brace =~ /^\{(\d+)/ ) { $depth_brace = $1; }
@@ -20895,7 +20895,7 @@ sub fix_terminal_else {
                     # when the pattern's don't match, because it can be
                     # worse to create an alignment where none is needed
                     # than to omit one.  Here's an example where the ','s
-                    # are not in named continers.  The first line below
+                    # are not in named containers.  The first line below
                     # should not match the next two:
                     #   ( $a, $b ) = ( $b, $r );
                     #   ( $x1, $x2 ) = ( $x2 - $q * $x1, $x1 );
@@ -21407,7 +21407,7 @@ sub adjust_side_comment {
                 $move = $min_move;
             }
 
-            # prevously, an upper bound was placed on $move here,
+            # previously, an upper bound was placed on $move here,
             # (maximum_space_to_comment), but it was not helpful
 
             # don't exceed the available space
@@ -21602,7 +21602,7 @@ sub get_extra_leading_spaces {
     # list before it sees everything.  When this happens, it sets
     # the indentation to the standard scheme, but notes how
     # many spaces it would have liked to use.  We may be able
-    # to recover that space here in the event that that all of the
+    # to recover that space here in the event that all of the
     # lines of a list are back together again.
     #----------------------------------------------------------
 
@@ -22562,7 +22562,7 @@ BEGIN {
 
 use Carp;
 
-# PACKAGE VARIABLES for for processing an entire FILE.
+# PACKAGE VARIABLES for processing an entire FILE.
 use vars qw{
   $tokenizer_self
 
@@ -22931,7 +22931,7 @@ sub report_tokenization_errors {
         write_logfile_entry("Suggest including 'use strict;'\n");
     }
 
-    # it is suggested that lables have at least one upper case character
+    # it is suggested that labels have at least one upper case character
     # for legibility and to avoid code breakage as new keywords are introduced
     if ( $tokenizer_self->{_rlower_case_labels_at} ) {
         my @lower_case_labels_at =
@@ -23121,7 +23121,7 @@ sub get_line {
     }
 
     # must print line unchanged if we have seen a severe error (i.e., we
-    # are seeing illegal tokens and connot continue.  Syntax errors do
+    # are seeing illegal tokens and cannot continue.  Syntax errors do
     # not pass this route).  Calling routine can decide what to do, but
     # the default can be to just pass all lines as if they were after __END__
     elsif ( $tokenizer_self->{_in_error} ) {
@@ -23999,7 +23999,7 @@ sub prepare_for_a_new_file {
                 $tokenizer_self->{_saw_perl_dash_w} = 1;
             }
 
-            # Check for indentifier in indirect object slot
+            # Check for identifier in indirect object slot
             # (vorboard.pl, sort.t).  Something like:
             #   /^(print|printf|sort|exec|system)$/
             if (
@@ -24207,7 +24207,7 @@ sub prepare_for_a_new_file {
         '/' => sub {
             my $is_pattern;
 
-            if ( $expecting == UNKNOWN ) {    # indeterminte, must guess..
+            if ( $expecting == UNKNOWN ) {    # indeterminate, must guess..
                 my $msg;
                 ( $is_pattern, $msg ) =
                   guess_if_pattern_or_division( $i, $rtokens, $rtoken_map,
@@ -24957,7 +24957,7 @@ sub prepare_for_a_new_file {
         if ( ( $untrimmed_input_line =~ /^=[A-Za-z_]/ ) ) {
 
             # must not be in multi-line quote
-            # and must not be in an eqn
+            # and must not be in an equation
             if ( !$in_quote and ( operator_expected( 'b', '=', 'b' ) == TERM ) )
             {
                 $tokenizer_self->{_in_pod} = 1;
@@ -25858,7 +25858,7 @@ EOM
 #     running value of this variable is $level_in_tokenizer.
 #
 #     The total continuation is much more difficult to compute, and requires
-#     several variables.  These veriables are:
+#     several variables.  These variables are:
 #
 #     $ci_string_in_tokenizer = a string of 1's and 0's indicating, for
 #       each indentation level, if there are intervening open secondary
@@ -25870,7 +25870,7 @@ EOM
 #       indentation level, if the level is of type BLOCK or not.
 #     $nesting_block_flag = the most recent 1 or 0 of $nesting_block_string
 #     $nesting_list_string = a string of 1's and 0's indicating, for each
-#       indentation level, if it is is appropriate for list formatting.
+#       indentation level, if it is appropriate for list formatting.
 #       If so, continuation indentation is used to indent long list items.
 #     $nesting_list_flag = the most recent 1 or 0 of $nesting_list_string
 #     @{$rslevel_stack} = a stack of total nesting depths at each
@@ -26090,7 +26090,7 @@ EOM
                         $indented_if_level = $level_in_tokenizer;
                     }
 
-                    # do not change container environement here if we are not
+                    # do not change container environment here if we are not
                     # at a real list. Adding this check prevents "blinkers"
                     # often near 'unless" clauses, such as in the following
                     # code:
@@ -26247,7 +26247,7 @@ EOM
                     }
 
                     # If we are in a list, then
-                    # we must set continuatoin indentation at the closing
+                    # we must set continuation indentation at the closing
                     # paren of something like this (paren after $check):
                     #     assert(
                     #         __LINE__,
@@ -26353,10 +26353,10 @@ EOM
                 }
             }
 
-            # set secondary nesting levels based on all continment token types
+            # set secondary nesting levels based on all containment token types
             # Note: these are set so that the nesting depth is the depth
             # of the PREVIOUS TOKEN, which is convenient for setting
-            # the stength of token bonds
+            # the strength of token bonds
             my $slevel_i = $slevel_in_tokenizer;
 
             #    /^[L\{\(\[]$/
@@ -26536,7 +26536,7 @@ sub operator_expected {
         }
 
         # something like $a = do { BLOCK } / 2;
-        # or this ? after a smartmatch anonynomous hash or array reference:
+        # or this ? after a smartmatch anonynmous hash or array reference:
         #   qr/3/ ~~ ['1234'] ? 1 : 0;
         #                                  ^
         else {
@@ -26865,7 +26865,7 @@ sub decide_if_code_block {
             push @pre_tokens, @$rpre_tokens;
         }
 
-        # put a sentinal token to simplify stopping the search
+        # put a sentinel token to simplify stopping the search
         push @pre_types, '}';
 
         my $jbeg = 0;
@@ -27529,7 +27529,7 @@ sub scan_bare_identifier_do {
         if ( $type eq 'w' ) {
 
             # check for v-string with leading 'v' type character
-            # (This seems to have presidence over filehandle, type 'Y')
+            # (This seems to have precedence over filehandle, type 'Y')
             if ( $tok =~ /^v\d[_\d]*$/ ) {
 
                 # we only have the first part - something like 'v101' -
@@ -28183,10 +28183,10 @@ sub scan_identifier_do {
                 #
                 # We have to be careful here.  If we are in an unknown state,
                 # we will reject the punctuation variable.  In the following
-                # example the '&' is a binary opeator but we are in an unknown
+                # example the '&' is a binary operator but we are in an unknown
                 # state because there is no sigil on 'Prima', so we don't
                 # know what it is.  But it is a bad guess that
-                # '&~' is a punction variable.
+                # '&~' is a function variable.
                 # $self->{text}->{colorMap}->[
                 #   Prima::PodView::COLOR_CODE_FOREGROUND
                 #   & ~tb::COLOR_INDEX ] =
@@ -28622,7 +28622,7 @@ sub numerator_expected {
 sub pattern_expected {
 
     # This is the start of a filter for a possible pattern.
-    # It looks at the token after a possbible pattern and tries to
+    # It looks at the token after a possible pattern and tries to
     # determine if that token could end a pattern.
     # returns -
     #   1 - yes
@@ -28732,7 +28732,7 @@ sub find_angle_operator_termination {
             my $str = substr( $input_line, $pos_beg, ( $pos - $pos_beg ) );
 
             # Reject if the closing '>' follows a '-' as in:
-            # if ( VERSION < 5.009 && $op-> name eq 'aassign' ) { }
+            # if ( VERSION < 5.009 && $op-> name eq 'assign' ) { }
             if ( $expecting eq UNKNOWN ) {
                 my $check = substr( $input_line, $pos - 2, 1 );
                 if ( $check eq '-' ) {
@@ -29564,7 +29564,7 @@ BEGIN {
 
     # these functions have prototypes of the form (&), so when they are
     # followed by a block, that block MAY BE followed by an operator.
-    # Smartmatch operator ~~ may be followed by anonomous hash or array ref
+    # Smartmatch operator ~~ may be followed by anonymous hash or array ref
     @_ = qw( do eval );
     @is_block_operator{@_} = (1) x scalar(@_);
 

@@ -150,7 +150,7 @@ use two leading dashes for long names, but one may be used.
 
 Most parameters which serve as on/off flags can be negated with a
 leading "n" (for the short name) or a leading "no" or "no-" (for the
-long name).  For example, the flag to outdent long quotes is is B<-olq>
+long name).  For example, the flag to outdent long quotes is B<-olq>
 or B<--outdent-long-quotes>.  The flag to skip this is B<-nolq>
 or B<--nooutdent-long-quotes> or B<--no-outdent-long-quotes>.
 
@@ -385,7 +385,7 @@ Setting B<-l=0> is equivalent to setting B<-l=(a large number)>.
 
 A problem arises using a fixed maximum line length with very deeply nested code
 and data structures because eventually the amount of leading whitespace used
-for indicating indation takes up most or all of the available line width,
+for indicating indentation takes up most or all of the available line width,
 leaving little or no space for the actual code or data.  One solution is to use
 a vary long line length.  Another solution is to use the B<-vmll> flag, which
 basically tells perltidy to ignore leading whitespace when measuring the line
@@ -456,7 +456,7 @@ option.
 
 =item B<-dt=n>,   B<--default-tabsize=n>
 
-If the the first line of code passed to perltidy contains leading tabs but no
+If the first line of code passed to perltidy contains leading tabs but no
 tab scheme is specified for the output stream then perltidy must guess how many
 spaces correspond to each leading tab.  This number of spaces B<n>
 corresponding to each leading tab of the input stream may be specified with
@@ -741,7 +741,7 @@ Use B<-nola> to not outdent labels.
 
 =item B<-okw>,  B<--outdent-keywords>
 
-The command B<-okw> will will cause certain leading control keywords to
+The command B<-okw> will cause certain leading control keywords to
 be outdented by 2 spaces (or whatever B<-ci> has been set to), if
 possible.  By default, these keywords are C<redo>, C<next>, C<last>,
 C<goto>, and C<return>.  The intention is to make these control keywords
@@ -1063,7 +1063,7 @@ right.  The default is n=4 spaces.
 =item B<-fpsc=n>,  B<--fixed-position-side-comment=n>
 
 This parameter tells perltidy to line up side comments in column number B<n>
-whenever possible.  The default, n=0, is not do do this.
+whenever possible.  The default, n=0, will not do this.
 
 =item B<-iscl>,  B<--ignore-side-comment-lengths>
 
@@ -1206,7 +1206,7 @@ can still be achieved with -ncscb:
   perltidy -csc -ncscb
   } ## end foreach my $foo (sort { $b cmp $a ...
 
-However this causes a problem with editors editors which cannot recognize
+However this causes a problem with editors which cannot recognize
 comments or are not configured to do so because they cannot "bounce" around in
 the text correctly.  The B<-cscb> flag has been added to
 help them by appending appropriate balancing structure:
@@ -1396,7 +1396,7 @@ single '#'.
 
 =item B<-osbc>, B<--outdent-static-block-comments>
 
-The command B<-osbc> will will cause static block comments to be outdented by 2
+The command B<-osbc> will cause static block comments to be outdented by 2
 spaces (or whatever B<-ci=n> has been set to), if possible.
 
 =back
@@ -1412,7 +1412,7 @@ when it is a side comment.
 =item B<-ssc>, B<--static-side-comments>
 
 When B<-ssc> is used, a side comment with a static leading pattern, which is
-C<##> by default, will be be spaced only a single space from previous
+C<##> by default, will be spaced only a single space from previous
 character, and it will not be vertically aligned with other side comments.
 
 The default is B<-nssc>.
@@ -1706,7 +1706,7 @@ between tightness and readability in complex lists.
 
 =item *
 
-Different controls may be applied to to different token types,
+Different controls may be applied to different token types,
 and it is also possible to control block braces; see below.
 
 =item *
@@ -1845,7 +1845,7 @@ C<elsif>, and C<else> blocks, we could use
 C<perltidy -bli -bbvt=1 -bbvtl='if elsif else'>.
 
 There is no vertical tightness control for closing block braces; with
-one exception they they will be placed on separate lines.
+one exception they will be placed on separate lines.
 The exception is that a cascade of closing block braces may
 be stacked on a single line.  See B<-scbb>.
 
@@ -2234,7 +2234,7 @@ With B<perltidy -kis> the multiple statements are retained:
 
 The statements are still subject to the specified value
 of B<maximum-line-length> and will be broken if this 
-maximum is exceeed.
+maximum is exceeded.
 
 =back
 
@@ -2265,7 +2265,7 @@ The parameter B<-blbs=n> requests that least B<n> blank lines precede a sub
 definition which does not follow a comment and which is more than one-line
 long.  The default is <-blbs=1>.  B<BEGIN> and B<END> blocks are included.
 
-The requested number of blanks statement will be inserted regardless of of the
+The requested number of blanks statement will be inserted regardless of the
 value of B<--maximum-consecutive-blank-lines=n> (B<-mbl=n>) with the exception
 that if B<-mbl=0> then no blanks will be output.
 
@@ -2487,7 +2487,7 @@ have a leading dot.  Further system-dependent information will be found
 in the INSTALL file distributed with perltidy.
 
 Under Windows, perltidy will also search for a configuration file named perltidy.ini since Windows does not allow files with a leading period (.).
-Use C<perltidy -dpro> to see the possbile locations for your system.
+Use C<perltidy -dpro> to see the possible locations for your system.
 An example might be F<C:\Documents and Settings\All Users\perltidy.ini>.
 
 Another option is the use of the PERLTIDY environment variable.
@@ -2503,7 +2503,7 @@ configuration file common to all users on the machine.  Be sure to enter the
 full path of the configuration file in the value of the environment variable.
 Ex.  PERLTIDY=C:\Documents and Settings\perltidy.ini
 
-The configuation file is free format, and simply a list of parameters, just as
+The configuration file is free format, and simply a list of parameters, just as
 they would be entered on a command line.  Any number of lines may be used, with
 any number of parameters per line, although it may be easiest to read with one
 parameter per line.  Comment text begins with a #, and there must
@@ -3017,7 +3017,7 @@ The following list shows all short parameter names which allow a prefix
  D    anl asc  aws  b    bbb bbc bbs  bl   bli  boc bok  bol  bot  ce
  csc  dac dbc  dcsc ddf  dln dnl dop  dp   dpro dsc dsm  dsn  dtt  dwls
  dwrs dws f    fll  frm  fs  hsc html ibc  icb  icp iob  isbc lal  log
- lp   lsl ohbr okw  ola  oll opr opt  osbr otr  ple ple  pod  pvl  q
+ lp   lsl ohbr okw  ola  oll opr opt  osbr otr  ple  pod  pvl  q
  sbc  sbl schb scp  scsb sct se  sfp  sfs  skp  sob sohb sop  sosb sot
  ssc  st  sts  syn  t    tac tbc toc  tp   tqw  tsc w    x    bar  kis
 
@@ -3093,7 +3093,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20130805.
+This man page documents perltidy version 20130806.
 
 =head1 CREDITS
 

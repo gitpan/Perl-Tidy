@@ -505,7 +505,7 @@ alone on a new line.
         }
     );
 
-If you prefer to avoid isolated opening opening tokens by
+If you prefer to avoid isolated opening tokens by
 "stacking" them together with other opening tokens like this:
 
     $opt_c = Text::CSV_XS->new( {

@@ -54,7 +54,7 @@ sub scan_file {
     my $err=perltidy(
         'formatter' => $formatter,     # callback object
         'source'    => $fh,
-        'argv'      => "-npro -se",    # dont need .perltidyrc
+        'argv'      => "-npro -se",    # don't need .perltidyrc
                                        # errors to STDOUT
     );
     if ($err){
@@ -91,11 +91,11 @@ sub write_line {
     my $line_of_tokens    = shift;
     my $line_type         = $line_of_tokens->{_line_type};
     my $input_line_number = $line_of_tokens->{_line_number};
-    my $input_line        = $line_of_tokens->{_line_text};    # the orignal line
-    my $rtoken_type       = $line_of_tokens->{_rtoken_type};  # type of tokens
-    my $rtokens           = $line_of_tokens->{_rtokens};      # text of tokens
+    my $input_line        = $line_of_tokens->{_line_text};   # the original line
+    my $rtoken_type       = $line_of_tokens->{_rtoken_type}; # type of tokens
+    my $rtokens           = $line_of_tokens->{_rtokens};     # text of tokens
     my $starting_in_quote =
-      $line_of_tokens->{_starting_in_quote};                  # text of tokens
+      $line_of_tokens->{_starting_in_quote};                 # text of tokens
     my $ending_in_quote  = $line_of_tokens->{_ending_in_quote}; # text of tokens
     my $max_quote_length = $self->{_max_quote_length};
     chomp $input_line;
@@ -143,7 +143,7 @@ EOM
             $new_line .= $token;
         } ## end for ( my $j = 0 ; $j <=...
 
-        # substitude the modified line for the original line
+        # substitute the modified line for the original line
         $input_line = $new_line;
     } ## end if ( $line_type eq 'CODE')
 

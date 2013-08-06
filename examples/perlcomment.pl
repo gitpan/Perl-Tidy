@@ -102,9 +102,9 @@ sub write_line {
     my $line_of_tokens = shift;
     my $line_type      = $line_of_tokens->{_line_type}; 
     ## my $input_line_number = $line_of_tokens->{_line_number}; 
-    my $input_line  = $line_of_tokens->{_line_text};  # the orignal line
-    my $rtoken_type = $line_of_tokens->{_rtoken_type}; # type of tokens
-    my $rtokens     = $line_of_tokens->{_rtokens}; # text of tokens
+    my $input_line  = $line_of_tokens->{_line_text};      # the original line
+    my $rtoken_type = $line_of_tokens->{_rtoken_type};    # type of tokens
+    my $rtokens     = $line_of_tokens->{_rtokens};        # text of tokens
 
     # Just print non-code, non-comment lines
     if (
