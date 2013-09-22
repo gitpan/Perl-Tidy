@@ -1,4 +1,13 @@
 Perltidy Change Log
+  2013 09 22
+      - Fixed RT #88020. --converge was not working with wide characters.
+
+      - Fixed RT #78156. package NAMESPACE VERSION syntax not accepted.
+
+      - First attempt to fix RT #88588.  INDEX END tag change in pod2html breaks 
+        perltidy -html. I put in a patch which should work but I don't yet have
+        a way of testing it.
+
   2013 08 06
       - Fixed RT #87107, spelling
 

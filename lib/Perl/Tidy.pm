@@ -78,7 +78,7 @@ use File::Basename;
 use File::Copy;
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/08/06 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/09/22 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -980,6 +980,11 @@ EOM
         if ($do_convergence_test) {
             eval "use Digest::MD5 qw(md5_hex)";
             $do_convergence_test = !$@;
+
+            # Trying to avoid problems with ancient versions of perl because
+            # I don't know in which version number utf8::encode was introduced.
+            eval { my $string = "perltidy"; utf8::encode($string) };
+            $do_convergence_test = $do_convergence_test && !$@;
         }
 
         # save objects to allow redirecting output during iterations
@@ -1094,7 +1099,10 @@ Stopping iterations because of errors.
 EOM
                 }
                 elsif ($do_convergence_test) {
-                    my $digest = md5_hex($sink_buffer);
+
+                    # Patch for [rt.cpan.org #88020]
+                    # Use utf8::encode since md5_hex() only operates on bytes.
+                    my $digest = md5_hex( utf8::encode($sink_buffer) );
                     if ( !$saw_md5{$digest} ) {
                         $saw_md5{$digest} = $iter;
                     }
@@ -5228,6 +5236,7 @@ sub pod_to_html {
     my $html_fh = $self->{_html_fh};
     my @toc;
     my $in_toc;
+    my $ul_level = 0;
     my $no_print;
 
     # This routine will write the html selectively and store the toc
@@ -5260,8 +5269,17 @@ sub pod_to_html {
             $title = escape_html($title);
             $html_print->("<h1>$title</h1>\n");
         }
+
+        # check for start of index, old pod2html
+        # before Pod::Html VERSION 1.15_02 it is delimited by comments as:
+        #    <!-- INDEX BEGIN -->
+        #    <ul>
+        #     ...
+        #    </ul>
+        #    <!-- INDEX END -->
+        #
         elsif ( $line =~ /^\s*<!-- INDEX BEGIN -->\s*$/i ) {
-            $in_toc = 1;
+            $in_toc = 'INDEX';
 
             # when frames are used, an extra table of contents in the
             # contents panel is confusing, so don't print it
@@ -5271,18 +5289,63 @@ sub pod_to_html {
             $html_print->($line);
         }
 
-        # Copy the perltidy toc, if any, after the Pod::Html toc
+        # check for start of index, new pod2html
+        # After Pod::Html VERSION 1.15_02 it is delimited as:
+        # <ul id="index">
+        # ...
+        # </ul>
+        elsif ( $line =~ /^\s*<ul\s+id="index">/i ) {
+            $in_toc   = 'UL';
+            $ul_level = 1;
+
+            # when frames are used, an extra table of contents in the
+            # contents panel is confusing, so don't print it
+            $no_print = $rOpts->{'frames'}
+              || !$rOpts->{'html-table-of-contents'};
+            $html_print->("<h2>Doc Index:</h2>\n") if $rOpts->{'frames'};
+            $html_print->($line);
+        }
+
+        # Check for end of index, old pod2html
         elsif ( $line =~ /^\s*<!-- INDEX END -->\s*$/i ) {
             $saw_index = 1;
             $html_print->($line);
+
+            # Copy the perltidy toc, if any, after the Pod::Html toc
             if ($toc_string) {
                 $html_print->("<hr />\n") if $rOpts->{'frames'};
                 $html_print->("<h2>Code Index:</h2>\n");
                 my @toc = map { $_ .= "\n" } split /\n/, $toc_string;
                 $html_print->(@toc);
             }
-            $in_toc   = 0;
+            $in_toc   = "";
             $no_print = 0;
+        }
+
+        # must track <ul> depth level for new pod2html
+        elsif ( $line =~ /\s*<ul>\s*$/i && $in_toc eq 'UL' ) {
+            $ul_level++;
+            $html_print->($line);
+        }
+
+        # Check for end of index, for new pod2html
+        elsif ( $line =~ /\s*<\/ul>/i && $in_toc eq 'UL' ) {
+            $ul_level--;
+            $html_print->($line);
+
+            # Copy the perltidy toc, if any, after the Pod::Html toc
+            if ( $ul_level <= 0 ) {
+                $saw_index = 1;
+                if ($toc_string) {
+                    $html_print->("<hr />\n") if $rOpts->{'frames'};
+                    $html_print->("<h2>Code Index:</h2>\n");
+                    my @toc = map { $_ .= "\n" } split /\n/, $toc_string;
+                    $html_print->(@toc);
+                }
+                $in_toc   = "";
+                $ul_level = 0;
+                $no_print = 0;
+            }
         }
 
         # Copy one perltidy section after each marker
@@ -15339,7 +15402,8 @@ sub pad_array_to_go {
                 #    3 - ignore =>
                 #    4 - always open up if vt=0
                 #    5 - stable: even for one line blocks if vt=0
-                if (  !$is_long_term
+                if (
+                    !$is_long_term
                     ##BUBBA: TYPO && $tokens_to_go[$i_opening] =~ /^[\(\{\]L]$/
                     && $tokens_to_go[$i_opening] =~ /^[\(\{\[]$/
                     && $index_before_arrow[ $depth + 1 ] > 0
@@ -17821,8 +17885,8 @@ sub undo_forced_breakpoint_stack {
                             )
                           );
 ##BUBBA: RT #81854
-                	$forced_breakpoint_to_go[$iend_1] = 0 unless
-                    		$old_breakpoint_to_go[$iend_1]
+                        $forced_breakpoint_to_go[$iend_1] = 0
+                          unless $old_breakpoint_to_go[$iend_1];
                     }
 
                     # handle leading 'and'
@@ -27863,7 +27927,15 @@ sub do_scan_package {
         # package NAMESPACE VERSION BLOCK
         my ( $next_nonblank_token, $i_next ) =
           find_next_nonblank_token( $i, $rtokens, $max_token_index );
-        if ( $next_nonblank_token =~ /^[v\.\d;\{\}]$/ ) {
+
+        # check that something recognizable follows, but do not parse.
+        # A VERSION number will be parsed later as a number or v-string in the
+        # normal way.  What is important is to set the statement type if
+        # everything looks okay so that the operator_expected() routine
+        # knows that the number is in a package statement.
+        # Examples of valid primitive tokens that might follow are:
+        #  1235  . ; { } v3  v
+        if ( $next_nonblank_token =~ /^([v\.\d;\{\}])|v\d|\d+$/ ) {
             $statement_type = $tok;
         }
         else {
