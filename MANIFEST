@@ -8,10 +8,6 @@ Makefile.npm
 README
 TODO
 bin/perltidy
-debian/changelog
-debian/control
-debian/copyright
-debian/rules
 docs/README
 docs/perltidy.1
 docs/stylekey.pod

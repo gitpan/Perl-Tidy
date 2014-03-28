@@ -14,6 +14,7 @@ VERSION_FROM => "lib/Perl/Tidy.pm",
   $] >= 5.005
 ? (
   ABSTRACT => 'indent and reformat perl scripts',
+  LICENSE => 'GPL-2.0+',
 AUTHOR => 'Steve Hancock <perltidy@perltidy.sourceforge.net>'
   )
 : ()

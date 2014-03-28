@@ -1,4 +1,24 @@
 Perltidy Change Log
+  2014 03 28
+      - Fixed RT #94190 and debian Bug #742004: perltidy.LOG file left behind.
+        Thanks to George Hartzell for debugging this.  The problem was
+        caused by the memoization speedup patch in version 20121207.  An
+        unwanted flag was being set which caused a LOG to be written if 
+        perltidy was called multiple times.
+
+      - New default behavior for LOG files: If the source is from an array or 
+        string (through a call to the perltidy module) then a LOG output is only
+        possible if a logfile stream is specified.  This is to prevent 
+        unexpected perltidy.LOG files. 
+
+      - Fixed debian Bug #740670, insecure temporary file usage.  File::Temp is now
+        used to get a temporary file.  Thanks to Don Anderson for a patch.
+  
+      - Any -b (--backup-and-modify-in-place) flag is silently ignored when a 
+        source stream, destination stream, or standard output is used.  
+        This is because the -b flag may have been in a .perltidyrc file and 
+        warnings break Test::NoWarnings.  Thanks to Marijn Brand.
+
   2013 09 22
       - Fixed RT #88020. --converge was not working with wide characters.
 

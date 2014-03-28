@@ -1,16 +1,8 @@
 Perltidy TODO List
   This is a partial "wish-list" of features to add and things to do.
 
-  Provide an option to ignore side comments when checking line length.  
-    That is, side comments would be allowed to be arbitrarily long without
-    influencing line breaks. 
-
   Improved Vertical Alignment
     There are still many opportunities for improving vertical alignment.
-
-  Minimize the instances in which formatting changes on a second iteration.  
-
-  Add a convergence test when -it=n is used
 
   Documentation
     A FAQ is needed to explain some of the more subtle formatting issues,

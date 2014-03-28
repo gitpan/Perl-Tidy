@@ -111,11 +111,10 @@ parameter is ignored.
 
 =item logfile
 
-The B<logfile> parameter allows the calling program to capture
-the stream that would otherwise go to a .LOG file.  This
-stream is only created if requested with a B<-g> parameter.  It 
-contains detailed diagnostic information about a script
-which may be useful for debugging.
+The B<logfile> parameter allows the calling program to capture the log stream.
+This stream is only created if requested with a B<-g> parameter.  It contains
+detailed diagnostic information about a script which may be useful for
+debugging.
 
 =item argv
 
@@ -416,7 +415,7 @@ to perltidy.
 
 =head1 VERSION
 
-This man page documents Perl::Tidy version 20130922.
+This man page documents Perl::Tidy version 20140328.
 
 =head1 LICENSE
 

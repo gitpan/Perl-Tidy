@@ -3,7 +3,7 @@
 #
 #    perltidy - a perl script indenter and formatter
 #
-#    Copyright (c) 2000-2013 by Steve Hancock
+#    Copyright (c) 2000-2014 by Steve Hancock
 #    Distributed under the GPL license agreement; see file COPYING
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -76,9 +76,10 @@ use Cwd;
 use IO::File;
 use File::Basename;
 use File::Copy;
+use File::Temp qw(tempfile);
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2013/09/22 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2014/03/28 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -233,36 +234,6 @@ sub catfile {
     ( $test_name, $test_path ) = fileparse($test_file);
     return $test_file if ( $test_name eq $name );
     return undef;
-}
-
-sub make_temporary_filename {
-
-    # Make a temporary filename.
-    # The POSIX tmpnam() function has been unreliable for non-unix systems
-    # (at least for the win32 systems that I've tested), so use a pre-defined
-    # name for them.  A disadvantage of this is that two perltidy
-    # runs in the same working directory may conflict.  However, the chance of
-    # that is small and manageable by the user, especially on systems for which
-    # the POSIX tmpnam function doesn't work.
-    my $name = "perltidy.TMP";
-    if ( $^O =~ /win32|dos/i || $^O eq 'VMS' || $^O eq 'MacOs' ) {
-        return $name;
-    }
-    eval "use POSIX qw(tmpnam)";
-    if ($@) { return $name }
-    use IO::File;
-
-    # just make a couple of tries before giving up and using the default
-    for ( 0 .. 3 ) {
-        my $tmpname = tmpnam();
-        my $fh = IO::File->new( $tmpname, O_RDWR | O_CREAT | O_EXCL );
-        if ($fh) {
-            $fh->close();
-            return ($tmpname);
-            last;
-        }
-    }
-    return ($name);
 }
 
 # Here is a map of the flow of data from the input source to the output
@@ -621,30 +592,32 @@ EOM
     my $in_place_modify = $rOpts->{'backup-and-modify-in-place'}
       && $rOpts->{'format'} eq 'tidy';
 
-    # turn off -b with warnings in case of conflicts with other options
+    # Turn off -b with warnings in case of conflicts with other options.
+    # NOTE: Do this silently, without warnings, if there is a source or
+    # destination stream, or standard output is used.  This is because the -b
+    # flag may have been in a .perltidyrc file and warnings break
+    # Test::NoWarnings.  See email discussion with Merijn Brand 26 Feb 2014.
     if ($in_place_modify) {
         if ( $rOpts->{'standard-output'} ) {
-            my $msg = "Ignoring -b; you may not use -b and -st together";
-            $msg .= " (-pbp contains -st; see manual)" if ($saw_pbp);
-            Warn "$msg\n";
+##            my $msg = "Ignoring -b; you may not use -b and -st together";
+##            $msg .= " (-pbp contains -st; see manual)" if ($saw_pbp);
+##            Warn "$msg\n";
             $in_place_modify = 0;
         }
         if ($destination_stream) {
-            Warn
-"Ignoring -b; you may not specify a destination stream and -b together\n";
+            ##Warn "Ignoring -b; you may not specify a destination stream and -b together\n";
             $in_place_modify = 0;
         }
         if ( ref($source_stream) ) {
-            Warn
-"Ignoring -b; you may not specify a source array and -b together\n";
+            ##Warn "Ignoring -b; you may not specify a source array and -b together\n";
             $in_place_modify = 0;
         }
         if ( $rOpts->{'outfile'} ) {
-            Warn "Ignoring -b; you may not use -b and -o together\n";
+            ##Warn "Ignoring -b; you may not use -b and -o together\n";
             $in_place_modify = 0;
         }
         if ( defined( $rOpts->{'output-path'} ) ) {
-            Warn "Ignoring -b; you may not use -b and -opath together\n";
+            ##Warn "Ignoring -b; you may not use -b and -opath together\n";
             $in_place_modify = 0;
         }
     }
@@ -709,6 +682,13 @@ EOM
         #---------------------------------------------------------------
         if ($source_stream) {
             $fileroot = "perltidy";
+
+            # If the source is from an array or string, then .LOG output
+            # is only possible if a logfile stream is specified.  This prevents
+            # unexpected perltidy.LOG files.
+            if ( !defined($logfile_stream) ) {
+                $logfile_stream = Perl::Tidy::DevNull->new();
+            }
         }
         elsif ( $input_file eq '-' ) {    # '-' indicates input from STDIN
             $fileroot = "perltidy";       # root name to use for .ERR, .LOG, etc
@@ -1324,12 +1304,7 @@ sub get_stream_as_named_file {
             my ( $fh_stream, $fh_name ) =
               Perl::Tidy::streamhandle( $stream, 'r' );
             if ($fh_stream) {
-                my ( $fout, $tmpnam );
-
-                # TODO: fix the tmpnam routine to return an open filehandle
-                $tmpnam = Perl::Tidy::make_temporary_filename();
-                $fout = IO::File->new( $tmpnam, 'w' );
-
+                my ( $fout, $tmpnam ) = tempfile();
                 if ($fout) {
                     $fname      = $tmpnam;
                     $is_tmpfile = 1;
@@ -2516,21 +2491,9 @@ sub check_options {
         }
     }
 
-    # see if user set a non-negative logfile-gap
+    # setting a non-negative logfile gap causes logfile to be saved
     if ( defined( $rOpts->{'logfile-gap'} ) && $rOpts->{'logfile-gap'} >= 0 ) {
-
-        # a zero gap will be taken as a 1
-        if ( $rOpts->{'logfile-gap'} == 0 ) {
-            $rOpts->{'logfile-gap'} = 1;
-        }
-
-        # setting a non-negative logfile gap causes logfile to be saved
         $rOpts->{'logfile'} = 1;
-    }
-
-    # not setting logfile gap, or setting it negative, causes default of 50
-    else {
-        $rOpts->{'logfile-gap'} = 50;
     }
 
     # set short-cut flag when only indentation is to be done.
@@ -3337,7 +3300,7 @@ sub show_version {
     print STDOUT <<"EOM";
 This is perltidy, v$VERSION 
 
-Copyright 2000-2013, Steve Hancock
+Copyright 2000-2014, Steve Hancock
 
 Perltidy is free software and may be copied under the terms of the GNU
 General Public License, which is included in the distribution files.
@@ -4114,8 +4077,15 @@ sub new {
         if ( -e $warning_file ) { unlink($warning_file) }
     }
 
+    my $logfile_gap =
+      defined( $rOpts->{'logfile-gap'} )
+      ? $rOpts->{'logfile-gap'}
+      : 50;
+    if ( $logfile_gap == 0 ) { $logfile_gap = 1 }
+
     bless {
         _log_file                      => $log_file,
+        _logfile_gap                   => $logfile_gap,
         _rOpts                         => $rOpts,
         _fh_warnings                   => $fh_warnings,
         _last_input_line_written       => 0,
@@ -4194,7 +4164,7 @@ sub black_box {
     if (
         (
             ( $input_line_number - $last_input_line_written ) >=
-            $rOpts->{'logfile-gap'}
+            $self->{_logfile_gap}
         )
         || ( $input_line =~ /^\s*(sub|package)\s+(\w+)/ )
       )
@@ -4387,6 +4357,7 @@ sub warning {
             if ( $self->get_use_prefix() > 0 ) {
                 my $input_line_number =
                   Perl::Tidy::Tokenizer::get_input_line_number();
+                if ( !defined($input_line_number) ) { $input_line_number = -1 }
                 $fh_warnings->print("$input_line_number:\t@_");
                 $self->write_logfile_entry("WARNING: @_");
             }
@@ -4509,7 +4480,7 @@ sub finish {
         }
 
         if ( $self->{_saw_brace_error}
-            && ( $rOpts->{'logfile-gap'} > 1 || !$save_logfile ) )
+            && ( $self->{_logfile_gap} > 1 || !$save_logfile ) )
         {
             $self->warning("To save a full .LOG file rerun with -g\n");
         }
@@ -5157,16 +5128,7 @@ sub pod_to_html {
     }
 
     # Pod::Html requires a real temporary filename
-    # If we are making a frame, we have a name available
-    # Otherwise, we have to fine one
-    my $tmpfile;
-    if ( $rOpts->{'frames'} ) {
-        $tmpfile = $self->{_toc_filename};
-    }
-    else {
-        $tmpfile = Perl::Tidy::make_temporary_filename();
-    }
-    my $fh_tmp = IO::File->new( $tmpfile, 'w' );
+    my ( $fh_tmp, $tmpfile ) = tempfile();
     unless ($fh_tmp) {
         Perl::Tidy::Warn
           "unable to open temporary file $tmpfile; cannot use pod2html\n";
@@ -15402,9 +15364,7 @@ sub pad_array_to_go {
                 #    3 - ignore =>
                 #    4 - always open up if vt=0
                 #    5 - stable: even for one line blocks if vt=0
-                if (
-                    !$is_long_term
-                    ##BUBBA: TYPO && $tokens_to_go[$i_opening] =~ /^[\(\{\]L]$/
+                if (  !$is_long_term
                     && $tokens_to_go[$i_opening] =~ /^[\(\{\[]$/
                     && $index_before_arrow[ $depth + 1 ] > 0
                     && !$opening_vertical_tightness{ $tokens_to_go[$i_opening] }
@@ -15826,7 +15786,18 @@ sub pad_array_to_go {
                         # don't break pointer calls, such as the following:
                         #  File::Spec->curdir  => 1,
                         # (This is tokenized as adjacent 'w' tokens)
-                        if ( $tokens_to_go[ $ibreak + 1 ] !~ /^->/ ) {
+                        ##if ( $tokens_to_go[ $ibreak + 1 ] !~ /^->/ ) {
+
+                        # And don't break before a comma, as in the following:
+                        # ( LONGER_THAN,=> 1,
+                        #    EIGHTY_CHARACTERS,=> 2,
+                        #    CAUSES_FORMATTING,=> 3,
+                        #    LIKE_THIS,=> 4,
+                        # );
+                        # This example is for -tso but should be general rule
+                        if (   $tokens_to_go[ $ibreak + 1 ] ne '->'
+                            && $tokens_to_go[ $ibreak + 1 ] ne ',' )
+                        {
                             set_forced_breakpoint($ibreak);
                         }
                     } ## end if ( $types_to_go[$ibreak...])
@@ -17884,7 +17855,7 @@ sub undo_forced_breakpoint_stack {
                                 && ( $iend_2 - $ibeg_2 <= 7 )
                             )
                           );
-##BUBBA: RT #81854
+##X: RT #81854
                         $forced_breakpoint_to_go[$iend_1] = 0
                           unless $old_breakpoint_to_go[$iend_1];
                     }
@@ -24226,6 +24197,7 @@ sub prepare_for_a_new_file {
         ';' => sub {
             $context        = UNKNOWN_CONTEXT;
             $statement_type = '';
+            $want_paren     = "";
 
             #    /^(for|foreach)$/
             if ( $is_for_foreach{ $paren_type[$paren_depth] } )
@@ -25554,15 +25526,32 @@ EOM
 
                 # various quote operators
                 elsif ( $is_q_qq_qw_qx_qr_s_y_tr_m{$tok} ) {
+##NICOL PATCH
                     if ( $expecting == OPERATOR ) {
 
-                        # patch for paren-less for/foreach glitch, part 1
-                        # perl will accept this construct as valid:
+                        # Be careful not to call an error for a qw quote
+                        # where a parenthesized list is allowed.  For example,
+                        # it could also be a for/foreach construct such as
                         #
                         #    foreach my $key qw\Uno Due Tres Quadro\ {
                         #        print "Set $key\n";
                         #    }
-                        unless ( $tok eq 'qw' && $is_for_foreach{$want_paren} )
+                        #
+
+                        # Or it could be a function call.
+                        # NOTE: Braces in something like &{ xxx } are not
+                        # marked as a block, we might have a method call.
+                        # &method(...), $method->(..), &{method}(...),
+                        # $ref[2](list) is ok & short for $ref[2]->(list)
+                        #
+                        # See notes in 'sub code_block_type' and
+                        # 'sub is_non_structural_brace'
+
+                        unless (
+                            $tok eq 'qw'
+                            && (   $last_nonblank_token =~ /^([\]\}\&]|\-\>)/
+                                || $is_for_foreach{$want_paren} )
+                          )
                         {
                             error_if_expecting_OPERATOR();
                         }
@@ -26819,9 +26808,10 @@ sub code_block_type {
     # NOTE: braces after type characters start code blocks, but for
     # simplicity these are not identified as such.  See also
     # sub is_non_structural_brace.
-    # elsif ( $last_nonblank_type eq 't' ) {
-    #    return $last_nonblank_token;
-    # }
+
+##    elsif ( $last_nonblank_type eq 't' ) {
+##       return $last_nonblank_token;
+##    }
 
     # brace after label:
     elsif ( $last_nonblank_type eq 'J' ) {
@@ -27038,7 +27028,8 @@ sub is_non_structural_brace {
     # NOTE: braces after type characters start code blocks, but for
     # simplicity these are not identified as such.  See also
     # sub code_block_type
-    # if ($last_nonblank_type eq 't') {return 0}
+
+    ##if ($last_nonblank_type eq 't') {return 0}
 
     # otherwise, it is non-structural if it is decorated
     # by type information.
