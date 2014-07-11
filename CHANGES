@@ -1,4 +1,66 @@
 Perltidy Change Log
+  2014 07 11
+      - Fixed RT #94902: abbreviation parsing in .perltidyrc files was not
+        working for multi-line abbreviations.  Thanks to Eric Fung for 
+        supplying a patch. 
+  
+      - Fixed RT #95708, misparsing of a hash when the first key was a perl
+        keyword, causing a semicolon to be incorrectly added.
+
+      - Fixed RT #94338 for-loop in a parenthesized block-map.  A code block within
+        parentheses of a map, sort, or grep function was being mistokenized.  In 
+        rare cases this could produce in an incorrect error message.  The fix will
+        produce some minor formatting changes.  Thanks to Daniel Trizen 
+        discovering and documenting this.
+
+      - Fixed RT #94354, excess indentation for stacked tokens.  Thanks to 
+        Colin Williams for supplying a patch.
+
+      - Added support for experimental postfix dereferencing notation introduced in
+        perl 5.20. RT #96021.
+
+      - Updated documentation to clarify the behavior of the -io flag
+        in response to RT #95709.  You can add -noll or -l=0 to prevent 
+        long comments from being outdented when -io is used.
+
+      - Added a check to prevent a problem reported in RT #81866, where large
+        scripts which had been compressed to a single line could not be formatted
+        because of a check for VERSION for MakeMaker. The workaround was to 
+        use -nvpl, but this shouldn't be necessary now.
+
+      - Fixed RT #96101; Closing brace of anonymous sub in a list was being
+        indented.  For example, the closing brace of the anonymous sub below 
+        will now be lined up with the word 'callback'.  This problem 
+        occured if there was no comma after the closing brace of the anonymous sub.  
+        This update may cause minor changes to formatting of code with lists 
+        of anonymous subs, especially TK code.
+    
+        # OLD
+        my @menu_items = (
+
+            #...
+            {
+                path     => '/_Operate/Transcode and split',
+                callback => sub {
+                    return 1 if not $self->project_opened;
+                    $self->comp('project')->transcode( split => 1 );
+                  }
+            }
+        );
+
+        # NEW
+        my @menu_items = (
+
+            #...
+            {
+                path     => '/_Operate/Transcode and split',
+                callback => sub {
+                    return 1 if not $self->project_opened;
+                    $self->comp('project')->transcode( split => 1 );
+                }
+            }
+        );
+
   2014 03 28
       - Fixed RT #94190 and debian Bug #742004: perltidy.LOG file left behind.
         Thanks to George Hartzell for debugging this.  The problem was

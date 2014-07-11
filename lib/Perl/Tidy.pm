@@ -79,7 +79,7 @@ use File::Copy;
 use File::Temp qw(tempfile);
 
 BEGIN {
-    ( $VERSION = q($Id: Tidy.pm,v 1.74 2014/03/28 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
+    ( $VERSION = q($Id: Tidy.pm,v 1.74 2014/07/11 13:56:49 perltidy Exp $) ) =~ s/^.*\s+(\d+)\/(\d+)\/(\d+).*$/$1$2$3/; # all one line for MakeMaker
 }
 
 sub streamhandle {
@@ -459,15 +459,16 @@ EOM
     #---------------------------------------------------------------
     # get command line options
     #---------------------------------------------------------------
-    my (
-        $rOpts,       $config_file,      $rraw_options,
-        $saw_extrude, $saw_pbp,          $roption_string,
-        $rexpansion,  $roption_category, $roption_range
-      )
+    my ( $rOpts, $config_file, $rraw_options, $roption_string,
+        $rexpansion, $roption_category, $roption_range )
       = process_command_line(
         $perltidyrc_stream,  $is_Windows, $Windows_type,
         $rpending_complaint, $dump_options_type,
       );
+
+    my $saw_extrude = ( grep m/^-extrude$/, @$rraw_options ) ? 1 : 0;
+    my $saw_pbp =
+      ( grep m/^-(pbp|perl-best-practices)$/, @$rraw_options ) ? 1 : 0;
 
     #---------------------------------------------------------------
     # Handle requests to dump information
@@ -2164,8 +2165,6 @@ sub _process_command_line {
     my @raw_options        = ();
     my $config_file        = "";
     my $saw_ignore_profile = 0;
-    my $saw_extrude        = 0;
-    my $saw_pbp            = 0;
     my $saw_dump_profile   = 0;
     my $i;
 
@@ -2213,12 +2212,6 @@ sub _process_command_line {
         }
         elsif ( $i =~ /^-(pro|profile)=?$/ ) {
             Die "usage: -pro=filename or --profile=filename, no spaces\n";
-        }
-        elsif ( $i =~ /^-extrude$/ ) {
-            $saw_extrude = 1;
-        }
-        elsif ( $i =~ /^-(pbp|perl-best-practices)$/ ) {
-            $saw_pbp = 1;
         }
         elsif ( $i =~ /^-(help|h|HELP|H|\?)$/ ) {
             usage();
@@ -2299,10 +2292,9 @@ EOM
 
         if ($fh_config) {
 
-            my ( $rconfig_list, $death_message, $_saw_pbp ) =
+            my ( $rconfig_list, $death_message ) =
               read_config_file( $fh_config, $config_file, $rexpansion );
             Die $death_message if ($death_message);
-            $saw_pbp ||= $_saw_pbp;
 
             # process any .perltidyrc parameters right now so we can
             # localize errors
@@ -2380,12 +2372,9 @@ EOM
         Die "Error on command line; for help try 'perltidy -h'\n";
     }
 
-    return (
-        \%Opts,       $config_file,      \@raw_options,
-        $saw_extrude, $saw_pbp,          $roption_string,
-        $rexpansion,  $roption_category, $roption_range
-    );
-}    # end of process_command_line
+    return ( \%Opts, $config_file, \@raw_options, $roption_string,
+        $rexpansion, $roption_category, $roption_range );
+}    # end of _process_command_line
 
 sub check_options {
 
@@ -3005,13 +2994,13 @@ sub read_config_file {
 
     my ( $fh, $config_file, $rexpansion ) = @_;
     my @config_list = ();
-    my $saw_pbp;
 
     # file is bad if non-empty $death_message is returned
     my $death_message = "";
 
     my $name = undef;
     my $line_no;
+    my $opening_brace_line;
     while ( my $line = $fh->getline() ) {
         $line_no++;
         chomp $line;
@@ -3022,69 +3011,86 @@ sub read_config_file {
         $line =~ s/^\s*(.*?)\s*$/$1/;    # trim both ends
         next unless $line;
 
-        # look for something of the general form
-        #    newname { body }
-        # or just
-        #    body
-
         my $body = $line;
-        my ($newname);
-        if ( $line =~ /^((\w+)\s*\{)(.*)\}$/ ) {
-            ( $newname, $body ) = ( $2, $3, );
-        }
-        if ($body) {
+        my $newname;
 
-            if ( !$saw_pbp && $body =~ /-(pbp|perl-best-practices)/ ) {
-                $saw_pbp = 1;
-            }
+        # Look for complete or partial abbreviation definition of the form
+        #     name { body }   or  name {   or    name { body
+        # See rules in perltidy's perldoc page
+        # Section: Other Controls - Creating a new abbreviation
+        if ( $line =~ /^((\w+)\s*\{)(.*)?$/ ) {
+            my $oldname = $name;
+            ( $name, $body ) = ( $2, $3 );
+
+            # Cannot start new abbreviation unless old abbreviation is complete
+            last if ($opening_brace_line);
+
+            $opening_brace_line = $line_no unless ( $body && $body =~ s/\}$// );
 
             # handle a new alias definition
-            if ($newname) {
-                if ($name) {
-                    $death_message =
-"No '}' seen after $name and before $newname in config file $config_file line $.\n";
-                    last;
-                }
-                $name = $newname;
-
-                if ( ${$rexpansion}{$name} ) {
-                    local $" = ')(';
-                    my @names = sort keys %$rexpansion;
-                    $death_message =
-                        "Here is a list of all installed aliases\n(@names)\n"
-                      . "Attempting to redefine alias ($name) in config file $config_file line $.\n";
-                    last;
-                }
-                ${$rexpansion}{$name} = [];
+            if ( ${$rexpansion}{$name} ) {
+                local $" = ')(';
+                my @names = sort keys %$rexpansion;
+                $death_message =
+                    "Here is a list of all installed aliases\n(@names)\n"
+                  . "Attempting to redefine alias ($name) in config file $config_file line $.\n";
+                last;
             }
+            ${$rexpansion}{$name} = [];
+        }
 
-            # now do the body
-            if ($body) {
+        # leading opening braces not allowed
+        elsif ( $line =~ /^{/ ) {
+            $opening_brace_line = undef;
+            $death_message =
+              "Unexpected '{' at line $line_no in config file '$config_file'\n";
+            last;
+        }
 
-                my ( $rbody_parts, $msg ) = parse_args($body);
-                if ($msg) {
-                    $death_message = <<EOM;
+        # Look for abbreviation closing:    body }   or    }
+        elsif ( $line =~ /^(.*)?\}$/ ) {
+            $body = $1;
+            if ($opening_brace_line) {
+                $opening_brace_line = undef;
+            }
+            else {
+                $death_message =
+"Unexpected '}' at line $line_no in config file '$config_file'\n";
+                last;
+            }
+        }
+
+        # Now store any parameters
+        if ($body) {
+
+            my ( $rbody_parts, $msg ) = parse_args($body);
+            if ($msg) {
+                $death_message = <<EOM;
 Error reading file '$config_file' at line number $line_no.
 $msg
 Please fix this line or use -npro to avoid reading this file
 EOM
-                    last;
-                }
+                last;
+            }
 
-                if ($name) {
+            if ($name) {
 
-                    # remove leading dashes if this is an alias
-                    foreach (@$rbody_parts) { s/^\-+//; }
-                    push @{ ${$rexpansion}{$name} }, @$rbody_parts;
-                }
-                else {
-                    push( @config_list, @$rbody_parts );
-                }
+                # remove leading dashes if this is an alias
+                foreach (@$rbody_parts) { s/^\-+//; }
+                push @{ ${$rexpansion}{$name} }, @$rbody_parts;
+            }
+            else {
+                push( @config_list, @$rbody_parts );
             }
         }
     }
+
+    if ($opening_brace_line) {
+        $death_message =
+"Didn't see a '}' to match the '{' at line $opening_brace_line in config file '$config_file'\n";
+    }
     eval { $fh->close() };
-    return ( \@config_list, $death_message, $saw_pbp );
+    return ( \@config_list, $death_message );
 }
 
 sub strip_comment {
@@ -6108,6 +6114,7 @@ use vars qw{
   %is_assignment
   %is_chain_operator
   %is_if_unless_and_or_last_next_redo_return
+  %ok_to_add_semicolon_for_block_type
 
   @has_broken_sublist
   @dont_align
@@ -6262,6 +6269,20 @@ BEGIN {
       qw(BEGIN END CHECK INIT AUTOLOAD DESTROY UNITCHECK continue if elsif else
       unless while until for foreach given when default);
     @is_block_without_semicolon{@_} = (1) x scalar(@_);
+
+    # We will allow semicolons to be added within these block types
+    # as well as sub and package blocks.
+    # NOTES:
+    # 1. Note that these keywords are omitted:
+    #     switch case given when default sort map grep
+    # 2. It is also ok to add for sub and package blocks and a labeled block
+    # 3. But not okay for other perltidy types including:
+    #     { } ; G t
+    # 4. Test files: blktype.t, blktype1.t, semicolon.t
+    @_ =
+      qw( BEGIN END CHECK INIT AUTOLOAD DESTROY UNITCHECK continue if elsif else
+      unless do while until eval for foreach );
+    @ok_to_add_semicolon_for_block_type{@_} = (1) x scalar(@_);
 
     # 'L' is token for opening { at hash key
     @_ = qw" L { ( [ ";
@@ -9396,15 +9417,23 @@ sub set_white_space_flag {
         #     *VERSION = \'1.01';
         #     ( $VERSION ) = '$Revision: 1.74 $ ' =~ /\$Revision:\s+([^\s]+)/;
         #   We will pass such a line straight through without breaking
-        #   it unless -npvl is used
+        #   it unless -npvl is used.
+
+        #   Patch for problem reported in RT #81866, where files
+        #   had been flattened into a single line and couldn't be
+        #   tidied without -npvl.  There are two parts to this patch:
+        #   First, it is not done for a really long line (80 tokens for now).
+        #   Second, we will only allow up to one semicolon
+        #   before the VERSION.  We need to allow at least one semicolon
+        #   for statements like this:
+        #      require Exporter;  our $VERSION = $Exporter::VERSION;
+        #   where both statements must be on a single line for MakeMaker
 
         my $is_VERSION_statement = 0;
-
-        if (
-              !$saw_VERSION_in_this_file
-            && $input_line =~ /VERSION/    # quick check to reject most lines
-            && $input_line =~ /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/
-          )
+        if (  !$saw_VERSION_in_this_file
+            && $jmax < 80
+            && $input_line =~
+            /^[^;]*;?[^;]*([\$*])(([\w\:\']*)\bVERSION)\b.*\=/ )
         {
             $saw_VERSION_in_this_file = 1;
             $is_VERSION_statement     = 1;
@@ -9801,24 +9830,14 @@ sub set_white_space_flag {
                         # and we don't have one
                         && ( $last_nonblank_type ne ';' )
 
-                        # patch until some block type issues are fixed:
-                        # Do not add semi-colon for block types '{',
-                        # '}', and ';' because we cannot be sure yet
-                        # that this is a block and not an anonymous
-                        # hash (blktype.t, blktype1.t)
-                        && ( $block_type !~ /^[\{\};]$/ )
-
-                        # patch: and do not add semi-colons for recently
-                        # added block types (see tmp/semicolon.t)
-                        && ( $block_type !~
-                            /^(switch|case|given|when|default)$/ )
-
-                        # it seems best not to add semicolons in these
-                        # special block types: sort|map|grep
-                        && ( !$is_sort_map_grep{$block_type} )
-
                         # and we are allowed to do so.
                         && $rOpts->{'add-semicolons'}
+
+                        # and we are allowed to for this block type
+                        && (   $ok_to_add_semicolon_for_block_type{$block_type}
+                            || $block_type =~ /^(sub|package)/
+                            || $block_type =~ /^\w+\:$/ )
+
                       )
                     {
 
@@ -12916,6 +12935,30 @@ sub lookup_opening_indentation {
                     && $levels_to_go[$i_next_nonblank] < $lev )
                 {
                     $adjust_indentation = 1;
+                }
+
+                # Patch for RT #96101, in which closing brace of anonymous subs
+                # was not outdented.  We should look ahead and see if there is
+                # a level decrease at the next token (i.e., a closing token),
+                # but right now we do not have that information.  For now
+                # we see if we are in a list, and this works well.
+                # See test files 'sub*.t' for good test cases.
+                elsif ($block_type_to_go[$ibeg] eq 'sub'
+                    && $container_environment_to_go[$i_terminal] eq 'LIST'
+                    && !$rOpts->{'indent-closing-brace'} )
+                {
+                    (
+                        $opening_indentation, $opening_offset,
+                        $is_leading,          $opening_exists
+                      )
+                      = get_opening_indentation( $ibeg, $ri_first, $ri_last,
+                        $rindentation_list );
+                    my $indentation = $leading_spaces_to_go[$ibeg];
+                    if ( defined($opening_indentation)
+                        && $indentation > $opening_indentation )
+                    {
+                        $adjust_indentation = 1;
+                    }
                 }
             }
 
@@ -21996,8 +22039,38 @@ sub valign_output_step_C {
 
         # Start storing lines when we see a line with multiple stacked opening
         # tokens.
-        if ( $args[0] =~ /[\{\(\[]\s*[\{\(\[]$/ ) {
+        # patch for RT #94354, requested by Colin Williams
+        if ( $seqno_string =~ /^\d+(\:+\d+)+$/ && $args[0] !~ /^[\}\)\]\:\?]/ )
+        {
+
+            # This test is efficient but a little subtle: The first test says
+            # that we have multiple sequence numbers and hence multiple opening
+            # or closing tokens in this line.  The second part of the test
+            # rejects stacked closing and ternary tokens.  So if we get here
+            # then we should have stacked unbalanced opening tokens.
+
+            # Here is a complex example:
+
+            # Foo($Bar[0], {  # (side comment)
+            # 	baz => 1,
+            # });
+
+            # The first line has sequence 6::4.  It does not begin with
+            # a closing token or ternary, so it passes the test and must be
+            # stacked opening tokens.
+
+            # The last line has sequence 4:6 but is a stack of closing tokens,
+            # so it gets rejected.
+
+            # Note that the sequence number of an opening token for a qw quote
+            # is a negative number and will be rejected.
+            # For example, for the following line:
+            #    skip_symbols([qw(
+            # $seqno_string='10:5:-1'.  It would be okay to accept it but
+            # I decided not to do this after testing.
+
             $valign_buffer_filling = $seqno_string;
+
         }
     }
 }
@@ -24365,12 +24438,6 @@ sub prepare_for_a_new_file {
                 $block_type = code_block_type( $i_tok, $rtokens, $rtoken_type,
                     $max_token_index );
 
-                # remember a preceding smartmatch operator
-                ## SMARTMATCH
-                ##if ( $last_nonblank_type eq '~~' ) {
-                ##    $block_type = $last_nonblank_type;
-                ##}
-
                 # patch to promote bareword type to function taking block
                 if (   $block_type
                     && $last_nonblank_type eq 'w'
@@ -24391,6 +24458,7 @@ sub prepare_for_a_new_file {
                     }
                 }
             }
+
             $brace_type[ ++$brace_depth ]        = $block_type;
             $brace_package[$brace_depth]         = $current_package;
             $brace_structural_type[$brace_depth] = $type;
@@ -24418,8 +24486,6 @@ sub prepare_for_a_new_file {
             # propagate type information for 'do' and 'eval' blocks, and also
             # for smartmatch operator.  This is necessary to enable us to know
             # if an operator or term is expected next.
-            ## SMARTMATCH
-            ##if ( $is_block_operator{$block_type} || $block_type eq '~~' ) {
             if ( $is_block_operator{$block_type} ) {
                 $tok = $block_type;
             }
@@ -26860,6 +26926,27 @@ sub code_block_type {
             $max_token_index );
     }
 
+    # Patch for bug # RT #94338 reported by Daniel Trizen
+    # for-loop in a parenthesized block-map triggering an error message:
+    #    map( { foreach my $item ( '0', '1' ) { print $item} } qw(a b c) );
+    # Check for a code block within a parenthesized function call
+    elsif ( $last_nonblank_token eq '(' ) {
+        my $paren_type = $paren_type[$paren_depth];
+        if ( $paren_type && $paren_type =~ /^(map|grep|sort)$/ ) {
+
+            # We will mark this as a code block but use type 't' instead
+            # of the name of the contining function.  This will allow for
+            # correct parsing but will usually produce better formatting.
+            # Braces with block type 't' are not broken open automatically
+            # in the formatter as are other code block types, and this usually
+            # works best.
+            return 't';    # (Not $paren_type)
+        }
+        else {
+            return "";
+        }
+    }
+
     # anything else must be anonymous hash reference
     else {
         return "";
@@ -26870,6 +26957,7 @@ sub decide_if_code_block {
 
     # USES GLOBAL VARIABLES: $last_nonblank_token
     my ( $i, $rtokens, $rtoken_type, $max_token_index ) = @_;
+
     my ( $next_nonblank_token, $i_next ) =
       find_next_nonblank_token( $i, $rtokens, $max_token_index );
 
@@ -26907,8 +26995,14 @@ sub decide_if_code_block {
 
         # We are only going to look ahead one more (nonblank/comment) line.
         # Strange formatting could cause a bad guess, but that's unlikely.
-        my @pre_types  = @$rtoken_type[ $i + 1 .. $max_token_index ];
-        my @pre_tokens = @$rtokens[ $i + 1 .. $max_token_index ];
+        my @pre_types;
+        my @pre_tokens;
+
+        # Ignore the rest of this line if it is a side comment
+        if ( $next_nonblank_token ne '#' ) {
+            @pre_types  = @$rtoken_type[ $i + 1 .. $max_token_index ];
+            @pre_tokens = @$rtokens[ $i + 1 .. $max_token_index ];
+        }
         my ( $rpre_tokens, $rpre_types ) =
           peek_ahead_for_n_nonblank_pre_tokens(20);    # 20 is arbitrary but
                                                        # generous, and prevents
@@ -26920,6 +27014,7 @@ sub decide_if_code_block {
         }
 
         # put a sentinel token to simplify stopping the search
+        push @pre_types, '}';
         push @pre_types, '}';
 
         my $jbeg = 0;
@@ -26947,9 +27042,7 @@ sub decide_if_code_block {
             $j++;
         }
         elsif ( $pre_types[$j] eq 'w' ) {
-            unless ( $is_keyword{ $pre_tokens[$j] } ) {
-                $j++;
-            }
+            $j++;
         }
         elsif ( $pre_types[$j] eq '-' && $pre_types[ ++$j ] eq 'w' ) {
             $j++;
@@ -26958,9 +27051,18 @@ sub decide_if_code_block {
 
             $j++ if $pre_types[$j] eq 'b';
 
-            # it's a hash ref if a comma or => follow next
-            if ( $pre_types[$j] eq ','
-                || ( $pre_types[$j] eq '=' && $pre_types[ ++$j ] eq '>' ) )
+            # Patched for RT #95708
+            if (
+
+                # it is a comma which is not a pattern delimeter except for qw
+                (
+                       $pre_types[$j] eq ','
+                    && $pre_tokens[$jbeg] !~ /^(s|m|y|tr|qr|q|qq|qx)$/
+                )
+
+                # or a =>
+                || ( $pre_types[$j] eq '=' && $pre_types[ ++$j ] eq '>' )
+              )
             {
                 $code_block_type = "";
             }
@@ -28049,6 +28151,11 @@ sub scan_identifier_do {
                     last;
                 }
             }
+
+            # POSTDEFREF ->@ ->% ->& ->*
+            elsif ( ( $tok =~ /^[\@\%\&\*]$/ ) && $identifier =~ /\-\>$/ ) {
+                $identifier .= $tok;
+            }
             elsif ( $tok =~ /^[A-Za-z_]/ ) {    # alphanumeric ..
                 $saw_alpha     = 1;
                 $id_scan_state = ':';           # now need ::
@@ -28076,7 +28183,9 @@ sub scan_identifier_do {
                 $id_scan_state = 'A';
                 $identifier .= $tok;
             }
-            elsif ( ( $tok eq '#' ) && ( $identifier eq '$' ) ) {    # $#array
+
+            # $# and POSTDEFREF ->$#
+            elsif ( ( $tok eq '#' ) && ( $identifier =~ /\$$/ ) ) {    # $#array
                 $identifier .= $tok;    # keep same state, a $ could follow
             }
             elsif ( $tok eq '{' ) {
@@ -28168,6 +28277,11 @@ sub scan_identifier_do {
 
                 # check for various punctuation variables
                 if ( $identifier =~ /^[\$\*\@\%]$/ ) {
+                    $identifier .= $tok;
+                }
+
+                # POSTDEFREF: Postfix reference ->$* ->%*  ->@* ->** ->&* ->$#*
+                elsif ( $tok eq '*' && $identifier =~ /([\@\%\$\*\&]|\$\#)$/ ) {
                     $identifier .= $tok;
                 }
 
@@ -30087,4 +30201,3 @@ BEGIN {
 }
 1;
 __END__
-

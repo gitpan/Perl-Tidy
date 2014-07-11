@@ -503,10 +503,10 @@ exactly what flags were passed to perl.
 
 =item B<-io>,   B<--indent-only>       
 
-This flag is used to deactivate all formatting and line break changes
+This flag is used to deactivate all whitespace and line break changes
 within non-blank lines of code.
 When it is in effect, the only change to the script will be
-to the indentation and blank lines.
+to the indentation and to the number of blank lines.
 And any flags controlling whitespace and newlines will be ignored.  You
 might want to use this if you are perfectly happy with your whitespace
 and line breaks, and merely want perltidy to handle the indentation.
@@ -519,6 +519,11 @@ B<--freeze-whitespace>.
 
 If you also want to keep your existing blank lines exactly
 as they are, you can add B<--freeze-blank-lines>. 
+
+With this option perltidy is still free to modify the indenting (and
+outdenting) of code and comments as it normally would.  If you also want to
+prevent long comment lines from being outdented, you can add either B<-noll> or
+B<-l=0>.
 
 =item B<-ole=s>,  B<--output-line-ending=s>
 
@@ -2577,8 +2582,8 @@ are preceded by the name of the alias (without leading dashes), like this:
 	}
 
 where B<newword> is the abbreviation, and B<opt1>, etc, are existing parameters
-I<or other abbreviations>.  The main syntax requirement is that
-the new abbreviation must begin on a new line.
+I<or other abbreviations>.  The main syntax requirement is that the new
+abbreviation along with its opening curly brace must begin on a new line.
 Space before and after the curly braces is optional.
 For a
 specific example, the following line
@@ -3093,7 +3098,7 @@ perlstyle(1), Perl::Tidy(3)
 
 =head1 VERSION
 
-This man page documents perltidy version 20140328.
+This man page documents perltidy version 20140711.
 
 =head1 CREDITS
 

@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "PERLTIDY 1"
-.TH PERLTIDY 1 "2014-03-27" "perl v5.14.2" "User Contributed Perl Documentation"
+.TH PERLTIDY 1 "2014-07-11" "perl v5.14.2" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -617,10 +617,10 @@ add a \fB\-c\fR and \fB\-x\fR if appropriate.  The \fI.LOG\fR file will show
 exactly what flags were passed to perl.
 .IP "\fB\-io\fR,   \fB\-\-indent\-only\fR" 4
 .IX Item "-io,   --indent-only"
-This flag is used to deactivate all formatting and line break changes
+This flag is used to deactivate all whitespace and line break changes
 within non-blank lines of code.
 When it is in effect, the only change to the script will be
-to the indentation and blank lines.
+to the indentation and to the number of blank lines.
 And any flags controlling whitespace and newlines will be ignored.  You
 might want to use this if you are perfectly happy with your whitespace
 and line breaks, and merely want perltidy to handle the indentation.
@@ -633,6 +633,11 @@ Setting this flag is equivalent to setting \fB\-\-freeze\-newlines\fR and
 .Sp
 If you also want to keep your existing blank lines exactly
 as they are, you can add \fB\-\-freeze\-blank\-lines\fR.
+.Sp
+With this option perltidy is still free to modify the indenting (and
+outdenting) of code and comments as it normally would.  If you also want to
+prevent long comment lines from being outdented, you can add either \fB\-noll\fR or
+\&\fB\-l=0\fR.
 .IP "\fB\-ole=s\fR,  \fB\-\-output\-line\-ending=s\fR" 4
 .IX Item "-ole=s,  --output-line-ending=s"
 where s=\f(CW\*(C`win\*(C'\fR, \f(CW\*(C`dos\*(C'\fR, \f(CW\*(C`unix\*(C'\fR, or \f(CW\*(C`mac\*(C'\fR.  This flag tells perltidy
@@ -2675,8 +2680,8 @@ are preceded by the name of the alias (without leading dashes), like this:
 .Ve
 .Sp
 where \fBnewword\fR is the abbreviation, and \fBopt1\fR, etc, are existing parameters
-\&\fIor other abbreviations\fR.  The main syntax requirement is that
-the new abbreviation must begin on a new line.
+\&\fIor other abbreviations\fR.  The main syntax requirement is that the new
+abbreviation along with its opening curly brace must begin on a new line.
 Space before and after the curly braces is optional.
 For a
 specific example, the following line
@@ -3183,7 +3188,7 @@ purpose of this rule is to prevent generating confusing filenames such as
 \&\fIperlstyle\fR\|(1), \fIPerl::Tidy\fR\|(3)
 .SH "VERSION"
 .IX Header "VERSION"
-This man page documents perltidy version 20140328.
+This man page documents perltidy version 20140711.
 .SH "CREDITS"
 .IX Header "CREDITS"
 Michael Cartmell supplied code for adaptation to \s-1VMS\s0 and helped with
